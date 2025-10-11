@@ -5,8 +5,8 @@ import { useAuth } from '../context/AuthContext';
 
 const Login = () => {
   const [formData, setFormData] = useState({
-    email: 'admin@oasis.edu',
-    password: 'password123'
+    email: '',
+    password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -111,7 +111,7 @@ const Login = () => {
                   value={formData.email}
                   onChange={handleChange}
                   className="appearance-none relative block w-full px-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:z-10 transition-colors duration-200"
-                  placeholder="admin@oasis.edu"
+                  placeholder="Enter your email address"
                 />
                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
                   <FaUserShield className="h-5 w-5 text-gray-400" />
@@ -191,13 +191,13 @@ const Login = () => {
             </button>
           </div>
 
-          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+          {/* <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
             <p className="text-sm text-blue-800 text-center">
               <strong>Demo Credentials:</strong><br />
               Email: admin@oasis.edu<br />
               Password: password123
             </p>
-          </div>
+          </div> */}
         </form>
 
         <div className="text-center">
