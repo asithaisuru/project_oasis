@@ -216,7 +216,7 @@ const Dashboard = () => {
           title="Revenue"
           value={`Rs. ${stats.totalRevenue.toLocaleString()}`}
           subtitle="total to be collected"
-          color="text-yellow-600"
+          color="text-red-600"
         />
       </div>
 
@@ -393,8 +393,8 @@ const Dashboard = () => {
                 </span>
               </div>
               <div className="flex justify-between items-center py-2">
-                <span className="text-gray-600">Revenue Collected</span>
-                <span className="font-semibold text-green-600">
+                <span className="text-gray-600">Revenue to be collected</span>
+                <span className="font-semibold text-red-600">
                   Rs. {stats.totalRevenue.toLocaleString()}
                 </span>
               </div>
