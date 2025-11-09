@@ -1,0 +1,24 @@
+Make a database named "oasis".
+
+Then a collection named "users"
+
+then in the shell past the below code to add the admin user.
+
+
+db.users.insertOne({
+  name: "System Administrator",
+  email: "admin@system.com",
+  password: "$2a$12$YRXsc1Z0v8GF8qRIfMnYkuA.W5a4jT.aEGmNTC1mtzGb173jaIr2y",
+  phone: "0712345678",
+  address: "Colombo, Sri Lanka",
+  bio: "Superuser with full system access.",
+  role: "admin",
+  isActive: true,
+  lastLogin: null,
+  createdAt: new Date(),
+  updatedAt: new Date()
+});
+
+
+Email : admin@system.com
+password : Admin@123
