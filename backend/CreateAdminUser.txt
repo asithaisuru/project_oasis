@@ -19,6 +19,23 @@ db.users.insertOne({
   updatedAt: new Date()
 });
 
+or
+
+{
+  "name": "System Administrator",
+  "email": "admin@system.com",
+  "password": "$2a$12$YRXsc1Z0v8GF8qRIfMnYkuA.W5a4jT.aEGmNTC1mtzGb173jaIr2y",
+  "phone": "0712345678",
+  "address": "Colombo, Sri Lanka",
+  "bio": "Superuser with full system access.",
+  "role": "admin",
+  "isActive": true,
+  "lastLogin": null,
+  "createdAt": { "$date": { "$numberLong": "1731400000000" } },
+  "updatedAt": { "$date": { "$numberLong": "1731400000000" } }
+}
+
+
 
 Email : admin@system.com
 password : Admin@123

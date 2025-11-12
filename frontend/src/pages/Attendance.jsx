@@ -136,14 +136,21 @@ const Attendance = () => {
     try {
       const res = await classService.getClasses();
       const data = res.data || [];
-      setClasses(data);
-      if (data.length > 0 && !selectedClass) {
-        setSelectedClass(data[0]._id);
+
+      // ✅ Only keep classes with status "active"
+      const activeClasses = data.filter(c => c.status === "active");
+
+      setClasses(activeClasses);
+
+      // ✅ Optionally set the first active class as selected
+      if (activeClasses.length > 0 && !selectedClass) {
+        setSelectedClass(activeClasses[0]._id);
       }
     } catch (err) {
       console.error("fetchClasses:", err);
     }
   };
+
 
   const fetchStudents = async () => {
     try {
@@ -682,11 +689,12 @@ const Attendance = () => {
             className="w-full border rounded px-3 py-2"
           >
             <option value="">-- Select class --</option>
-            {classes.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.name} (Grade {c.grade})
-              </option>
-            ))}
+            {classes
+              .map(c => (
+                <option key={c._id} value={c._id}>
+                  {c.name} (Grade {c.grade})
+                </option>
+              ))}
           </select>
         </div>
         <div>
@@ -798,13 +806,12 @@ const Attendance = () => {
               <div className="flex items-center justify-center gap-2 mt-2">
                 {getFeeStatusIcon(scannedStudent.feeStatus)}
                 <span
-                  className={`text-sm font-medium ${
-                    scannedStudent.feeStatus === "paid"
-                      ? "text-green-600"
-                      : scannedStudent.feeStatus === "overdue"
+                  className={`text-sm font-medium ${scannedStudent.feeStatus === "paid"
+                    ? "text-green-600"
+                    : scannedStudent.feeStatus === "overdue"
                       ? "text-red-600"
                       : "text-yellow-600"
-                  }`}
+                    }`}
                 >
                   Fee: {scannedStudent.feeStatus?.toUpperCase()}
                 </span>
@@ -936,15 +943,14 @@ const Attendance = () => {
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-flex items-center gap-2 px-2 py-1 rounded text-sm ${
-                          status === "present"
-                            ? "bg-green-100 text-green-700"
-                            : status === "late"
+                        className={`inline-flex items-center gap-2 px-2 py-1 rounded text-sm ${status === "present"
+                          ? "bg-green-100 text-green-700"
+                          : status === "late"
                             ? "bg-yellow-100 text-yellow-700"
                             : status === "absent"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-gray-100 text-gray-700"
-                        }`}
+                              ? "bg-red-100 text-red-700"
+                              : "bg-gray-100 text-gray-700"
+                          }`}
                       >
                         {getStatusIcon(status)}
                         {status
@@ -955,25 +961,25 @@ const Attendance = () => {
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {timestamp
                         ? (() => {
-                            try {
-                              const date = new Date(timestamp);
-                              if (isNaN(date.getTime())) {
-                                return "--:--";
-                              }
-                              return date.toLocaleTimeString("en-US", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                hour12: true,
-                              });
-                            } catch (error) {
-                              console.log(
-                                "Error parsing timestamp:",
-                                timestamp,
-                                error
-                              );
+                          try {
+                            const date = new Date(timestamp);
+                            if (isNaN(date.getTime())) {
                               return "--:--";
                             }
-                          })()
+                            return date.toLocaleTimeString("en-US", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            });
+                          } catch (error) {
+                            console.log(
+                              "Error parsing timestamp:",
+                              timestamp,
+                              error
+                            );
+                            return "--:--";
+                          }
+                        })()
                         : "No time"}
                     </td>
                     {/* In the Attendance list section - Update the manual buttons */}

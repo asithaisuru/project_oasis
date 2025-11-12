@@ -23,7 +23,10 @@ const classSchema = new mongoose.Schema({
       'Tamil',
       'Physics',
       'Chemistry',
-      'Combined Maths'
+      'Combined Maths',
+      'Art',
+      'Music',
+      'Dancing',
     ]
   },
   grade: {
