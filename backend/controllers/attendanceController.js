@@ -23,9 +23,23 @@ export const getAttendance = async (req, res) => {
 
     const attendance = await Attendance.find(query)
       .populate("class", "name subject grade")
-      .populate("students.student", "name email studentId grade")
+      .populate("students.student", "name email studentId grade profilePicture")
       .populate("takenBy", "name")
       .sort({ date: -1, createdAt: -1 });
+
+    console.log("🔍 Attendance query results:", {
+      query,
+      count: attendance.length,
+      records: attendance.map(rec => ({
+        date: rec.date,
+        studentCount: rec.students.length,
+        students: rec.students.map(s => ({
+          studentId: s.student?._id,
+          name: s.student?.name,
+          status: s.status
+        }))
+      }))
+    });
 
     res.json({
       success: true,

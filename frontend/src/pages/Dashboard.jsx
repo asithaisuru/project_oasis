@@ -37,6 +37,7 @@ const Dashboard = () => {
   const navigateToAttendance = () => navigate("/attendance");
   const navigateToPayments = () => navigate("/payments");
   const navigateToReports = () => navigate("/reports");
+  const navigateToGrades = () => navigate("/grades");
 
   useEffect(() => {
     fetchDashboardData();
@@ -216,7 +217,7 @@ const Dashboard = () => {
           title="Revenue"
           value={`Rs. ${stats.totalRevenue.toLocaleString()}`}
           subtitle="total to be collected"
-          color="text-yellow-600"
+          color="text-red-600"
         />
       </div>
 
@@ -237,6 +238,7 @@ const Dashboard = () => {
                 description="Manage all students"
                 color="text-blue-600"
                 onClick={navigateToStudents}
+                disabled={false}
               />
               <QuickAction
                 icon={FaChalkboardTeacher}
@@ -244,6 +246,7 @@ const Dashboard = () => {
                 description="Manage teaching staff"
                 color="text-green-600"
                 onClick={navigateToTeachers}
+                disabled={false}
               />
               <QuickAction
                 icon={FaBook}
@@ -251,6 +254,7 @@ const Dashboard = () => {
                 description="Manage classes & schedules"
                 color="text-purple-600"
                 onClick={navigateToClasses}
+                disabled={false}
               />
               <QuickAction
                 icon={FaCalendarAlt}
@@ -265,13 +269,15 @@ const Dashboard = () => {
                 description="Manage fee payments"
                 color="text-yellow-600"
                 onClick={navigateToPayments}
+                disabled={false}
               />
               <QuickAction
                 icon={FaChartLine}
                 title="Reports"
-                description="View analytics & reports"
+                description="View analytics & reports - coming soon"
                 color="text-indigo-600"
                 onClick={navigateToReports}
+                disabled={true}
               />
             </div>
           </div>
@@ -393,8 +399,8 @@ const Dashboard = () => {
                 </span>
               </div>
               <div className="flex justify-between items-center py-2">
-                <span className="text-gray-600">Revenue Collected</span>
-                <span className="font-semibold text-green-600">
+                <span className="text-gray-600">Revenue to be collected</span>
+                <span className="font-semibold text-red-600">
                   Rs. {stats.totalRevenue.toLocaleString()}
                 </span>
               </div>

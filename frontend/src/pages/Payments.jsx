@@ -11,6 +11,8 @@ const Payments = () => {
   const [activeTab, setActiveTab] = useState("view"); // 'view' or 'generate'
   const [generationResult, setGenerationResult] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedMethods, setSelectedMethods] = useState({});
+
 
   // Generation states
   // In your generation states, change the defaults:
@@ -174,9 +176,11 @@ const Payments = () => {
   };
 
   const handleMarkAsPaid = async (paymentId) => {
+
+    const method = selectedMethods[paymentId] || "cash";
     try {
       await paymentService.markPaymentAsPaid(paymentId, {
-        paymentMethod: "cash",
+        paymentMethod: method,
         transactionId: `TXN${Date.now()}`,
       });
       alert("Payment marked as paid successfully");
@@ -242,21 +246,19 @@ const Payments = () => {
         <div className="flex space-x-4">
           <button
             onClick={() => setActiveTab("view")}
-            className={`px-4 py-2 rounded-lg ${
-              activeTab === "view"
-                ? "bg-blue-500 text-white"
-                : "bg-gray-200 text-gray-700"
-            }`}
+            className={`px-4 py-2 rounded-lg ${activeTab === "view"
+              ? "bg-blue-500 text-white"
+              : "bg-gray-200 text-gray-700"
+              }`}
           >
             View Payments
           </button>
           <button
             onClick={() => setActiveTab("generate")}
-            className={`px-4 py-2 rounded-lg ${
-              activeTab === "generate"
-                ? "bg-blue-500 text-white"
-                : "bg-gray-200 text-gray-700"
-            }`}
+            className={`px-4 py-2 rounded-lg ${activeTab === "generate"
+              ? "bg-blue-500 text-white"
+              : "bg-gray-200 text-gray-700"
+              }`}
           >
             Generate Payments
           </button>
@@ -650,6 +652,9 @@ const Payments = () => {
                         Type
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Payment Method
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Actions
                       </th>
                     </tr>
@@ -697,16 +702,38 @@ const Payments = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           {payment.status === "pending" ? (
+                            <select
+                              value={selectedMethods[payment._id] || ""}
+                              onChange={(e) =>
+                                setSelectedMethods((prev) => ({
+                                  ...prev,
+                                  [payment._id]: e.target.value,
+                                }))
+                              }
+                              className="border border-gray-300 rounded-md text-sm px-2 py-1"
+                            >
+                              <option value="">Select</option>
+                              <option value="cash">Cash</option>
+                              <option value="card">Card</option>
+                              <option value="online">Online</option>
+                            </select>
+                          ) : (
+                            <span className="text-green-600 font-medium"></span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          {payment.status === "pending" ? (
                             <button
                               onClick={() => handleMarkAsPaid(payment._id)}
-                              className="text-green-600 hover:text-green-900 mr-3"
+                              disabled={!selectedMethods[payment._id]}
+                              className="text-green-600 hover:text-green-900 text-sm disabled:opacity-50"
                             >
                               Mark Paid
                             </button>
                           ) : (
                             <button
                               onClick={() => handleRevertToPending(payment._id)}
-                              className="text-yellow-600 hover:text-yellow-900 mr-3"
+                              className="text-yellow-600 hover:text-yellow-900 text-sm"
                             >
                               Revert to Pending
                             </button>

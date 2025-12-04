@@ -76,6 +76,19 @@ const Attendance = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Add this useEffect to debug attendance data
+  useEffect(() => {
+    console.log("📊 Current scannedStudents state:", {
+      count: scannedStudents.length,
+      students: scannedStudents.map((s) => ({
+        student: s.student?._id || s.student,
+        name: s.student?.name || "Unknown",
+        status: s.status,
+        timestamp: s.timestamp,
+      })),
+    });
+  }, [scannedStudents]);
+
   useEffect(() => {
     console.log(
       "🔄 Component mounted - Today's date should be:",
@@ -123,14 +136,21 @@ const Attendance = () => {
     try {
       const res = await classService.getClasses();
       const data = res.data || [];
-      setClasses(data);
-      if (data.length > 0 && !selectedClass) {
-        setSelectedClass(data[0]._id);
+
+      // ✅ Only keep classes with status "active"
+      const activeClasses = data.filter(c => c.status === "active");
+
+      setClasses(activeClasses);
+
+      // ✅ Optionally set the first active class as selected
+      if (activeClasses.length > 0 && !selectedClass) {
+        setSelectedClass(activeClasses[0]._id);
       }
     } catch (err) {
       console.error("fetchClasses:", err);
     }
   };
+
 
   const fetchStudents = async () => {
     try {
@@ -149,12 +169,32 @@ const Attendance = () => {
       const queryDate = new Date(selectedDate);
       queryDate.setHours(0, 0, 0, 0);
 
+      console.log("📅 Fetching attendance for date:", queryDate.toISOString());
+
       const res = await attendanceService.getAttendance({
         class: selectedClass,
         date: queryDate.toISOString(),
       });
 
       const record = res.data?.[0] || null;
+      console.log("📊 Attendance record from server:", record);
+
+      if (record && record.students) {
+        // Transform the data to match what scannedStudents expects
+        const attendanceData = record.students.map((studentRecord) => ({
+          student: studentRecord.student, // This should be populated with student details
+          status: studentRecord.status,
+          timestamp: studentRecord.timestamp,
+          notes: studentRecord.notes,
+          _id: studentRecord._id,
+        }));
+
+        console.log("🔄 Processed attendance data:", attendanceData);
+        setScannedStudents(attendanceData);
+      } else {
+        console.log("❌ No attendance record found for this date");
+        setScannedStudents([]);
+      }
     } catch (err) {
       console.error("fetchClassAttendance error:", err);
       setScannedStudents([]);
@@ -330,39 +370,39 @@ const Attendance = () => {
   };
 
   // --- Mark attendance ---
-  const updateLocalAttendance = (studentId, status, studentObj) => {
-    setScannedStudents((prev) => {
-      const existingIndex = prev.findIndex((p) => p.student._id === studentId);
+  // const updateLocalAttendance = (studentId, status, studentObj) => {
+  //   setScannedStudents((prev) => {
+  //     const existingIndex = prev.findIndex((p) => p.student._id === studentId);
 
-      // Ensure student object has the right structure
-      const studentData = studentObj
-        ? {
-            _id: studentObj._id,
-            name: studentObj.name,
-            studentId: studentObj.studentId,
-            // Add other fields that might be needed
-          }
-        : {
-            _id: studentId,
-            name: "Unknown",
-            studentId: "Unknown",
-          };
+  //     // Ensure student object has the right structure
+  //     const studentData = studentObj
+  //       ? {
+  //           _id: studentObj._id,
+  //           name: studentObj.name,
+  //           studentId: studentObj.studentId,
+  //           // Add other fields that might be needed
+  //         }
+  //       : {
+  //           _id: studentId,
+  //           name: "Unknown",
+  //           studentId: "Unknown",
+  //         };
 
-      const newRecord = {
-        student: studentData,
-        status,
-        timestamp: new Date().toISOString(),
-      };
+  //     const newRecord = {
+  //       student: studentData,
+  //       status,
+  //       timestamp: new Date().toISOString(),
+  //     };
 
-      if (existingIndex >= 0) {
-        const updatedList = [...prev];
-        updatedList[existingIndex] = newRecord;
-        return updatedList;
-      } else {
-        return [newRecord, ...prev];
-      }
-    });
-  };
+  //     if (existingIndex >= 0) {
+  //       const updatedList = [...prev];
+  //       updatedList[existingIndex] = newRecord;
+  //       return updatedList;
+  //     } else {
+  //       return [newRecord, ...prev];
+  //     }
+  //   });
+  // };
 
   const markAttendance = async (studentId, status, options = {}) => {
     try {
@@ -381,11 +421,8 @@ const Attendance = () => {
       console.log("Attendance service response:", response);
 
       if (response.success) {
-        // Store timestamp locally since backend doesn't have it yet
-        updateLocalAttendance(studentId, status, {
-          ...options.studentObj,
-          timestamp: currentTime, // Add timestamp on frontend
-        });
+        // Refresh the attendance data to get the latest from server
+        await fetchClassAttendance();
         return response;
       } else {
         throw new Error(response.message || "Failed to mark attendance");
@@ -652,11 +689,12 @@ const Attendance = () => {
             className="w-full border rounded px-3 py-2"
           >
             <option value="">-- Select class --</option>
-            {classes.map((c) => (
-              <option key={c._id} value={c._id}>
-                {c.name} (Grade {c.grade})
-              </option>
-            ))}
+            {classes
+              .map(c => (
+                <option key={c._id} value={c._id}>
+                  {c.name} (Grade {c.grade})
+                </option>
+              ))}
           </select>
         </div>
         <div>
@@ -768,13 +806,12 @@ const Attendance = () => {
               <div className="flex items-center justify-center gap-2 mt-2">
                 {getFeeStatusIcon(scannedStudent.feeStatus)}
                 <span
-                  className={`text-sm font-medium ${
-                    scannedStudent.feeStatus === "paid"
-                      ? "text-green-600"
-                      : scannedStudent.feeStatus === "overdue"
+                  className={`text-sm font-medium ${scannedStudent.feeStatus === "paid"
+                    ? "text-green-600"
+                    : scannedStudent.feeStatus === "overdue"
                       ? "text-red-600"
                       : "text-yellow-600"
-                  }`}
+                    }`}
                 >
                   Fee: {scannedStudent.feeStatus?.toUpperCase()}
                 </span>
@@ -868,9 +905,12 @@ const Attendance = () => {
             ) : (
               enrolledStudents.map((enrolledStu) => {
                 const attendanceRecord = scannedStudents.find((scanned) => {
-                  const scannedStudentId =
-                    scanned.student?._id || scanned.student;
-                  return scannedStudentId === enrolledStu._id;
+                  // Handle both populated student object and student ID
+                  if (scanned.student && typeof scanned.student === "object") {
+                    return scanned.student._id === enrolledStu._id;
+                  } else {
+                    return scanned.student === enrolledStu._id;
+                  }
                 });
 
                 const status = attendanceRecord?.status;
@@ -903,15 +943,14 @@ const Attendance = () => {
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-flex items-center gap-2 px-2 py-1 rounded text-sm ${
-                          status === "present"
-                            ? "bg-green-100 text-green-700"
-                            : status === "late"
+                        className={`inline-flex items-center gap-2 px-2 py-1 rounded text-sm ${status === "present"
+                          ? "bg-green-100 text-green-700"
+                          : status === "late"
                             ? "bg-yellow-100 text-yellow-700"
                             : status === "absent"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-gray-100 text-gray-700"
-                        }`}
+                              ? "bg-red-100 text-red-700"
+                              : "bg-gray-100 text-gray-700"
+                          }`}
                       >
                         {getStatusIcon(status)}
                         {status
@@ -922,25 +961,25 @@ const Attendance = () => {
                     <td className="px-4 py-3 text-sm text-gray-600">
                       {timestamp
                         ? (() => {
-                            try {
-                              const date = new Date(timestamp);
-                              if (isNaN(date.getTime())) {
-                                return "--:--";
-                              }
-                              return date.toLocaleTimeString("en-US", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                hour12: true,
-                              });
-                            } catch (error) {
-                              console.log(
-                                "Error parsing timestamp:",
-                                timestamp,
-                                error
-                              );
+                          try {
+                            const date = new Date(timestamp);
+                            if (isNaN(date.getTime())) {
                               return "--:--";
                             }
-                          })()
+                            return date.toLocaleTimeString("en-US", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                            });
+                          } catch (error) {
+                            console.log(
+                              "Error parsing timestamp:",
+                              timestamp,
+                              error
+                            );
+                            return "--:--";
+                          }
+                        })()
                         : "No time"}
                     </td>
                     {/* In the Attendance list section - Update the manual buttons */}

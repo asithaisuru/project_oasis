@@ -13,6 +13,7 @@ import Profile from './pages/Profile';
 import Settings from './pages/Settings';
 import Notifications from './pages/Notifications';
 import Login from './pages/Login';
+import Grades from './pages/Grades';
 import NotFound from './pages/NotFound';
 import './App.css';
 
@@ -95,6 +96,12 @@ function AppContent() {
         <Route path="/notifications" element={
           <ProtectedRoute>
             <Notifications />
+          </ProtectedRoute>
+        } />
+        
+        <Route path="/grades" element={
+          <ProtectedRoute>
+            <Grades />
           </ProtectedRoute>
         } />
         

@@ -1,6 +1,7 @@
 import Payment from '../models/Payment.js';
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
+import { sendEmail } from "../utils/sendEmail.js";
 
 // ===== ORIGINAL CRUD FUNCTIONS =====
 
@@ -14,7 +15,7 @@ export const getPayments = async (req, res) => {
       .populate('class', 'name className fee subject')
       .populate('collectedBy', 'name')
       .sort({ createdAt: -1 });
-    
+
     res.status(200).json(payments);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -52,7 +53,7 @@ export const createPayment = async (req, res) => {
 
     const payment = new Payment(paymentData);
     const savedPayment = await payment.save();
-    
+
     const populatedPayment = await Payment.findById(savedPayment._id)
       .populate('student', 'name email')
       .populate('class', 'name className fee subject')
@@ -102,31 +103,90 @@ export const updatePayment = async (req, res) => {
 export const markPaymentAsPaid = async (req, res) => {
   try {
     const { paymentMethod, transactionId, notes } = req.body;
-    
+
+    // Find and update payment, populate student and class
     const payment = await Payment.findByIdAndUpdate(
       req.params.id,
       {
-        status: 'paid',
-        paymentMethod: paymentMethod || 'cash',
+        status: "paid",
+        paymentMethod: paymentMethod || "cash",
         transactionId,
         notes,
-        paymentDate: new Date()
+        paymentDate: new Date(),
       },
       { new: true }
     )
-      .populate('student', 'name email')
-      .populate('class', 'name className fee subject')
-      .populate('collectedBy', 'name');
+      .populate("student", "name email parentEmail")
+      .populate("class", "name className fee subject")
+      .populate("collectedBy", "name");
 
     if (!payment) {
-      return res.status(404).json({ message: 'Payment not found' });
+      return res.status(404).json({ message: "Payment not found" });
     }
+
+    // Build recipient list
+    const recipients = [payment.student.email];
+    if (payment.student.parentEmail) {
+      recipients.push(payment.student.parentEmail);
+    }
+
+    // Pretty HTML email template
+    const emailHtml = `
+      <div style="font-family: Arial, sans-serif; color: #333; background-color: #f7f9fc; padding: 20px;">
+        <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden;">
+          <div style="background: #2563eb; color: #fff; text-align: center; padding: 20px;">
+            <h1 style="margin: 0; font-size: 22px;">Payment Confirmation</h1>
+          </div>
+
+          <div style="padding: 25px;">
+            <p>Dear ${payment.student.name},</p>
+            <p>Your payment for <strong>${payment.class?.name || payment.class?.className}</strong> has been successfully marked as <span style="color: #16a34a; font-weight: bold;">PAID</span>.</p>
+
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+              <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Amount</strong></td>
+                <td style="padding: 8px; border-bottom: 1px solid #eee;">${payment.class?.fee}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Payment Method</strong></td>
+                <td style="padding: 8px; border-bottom: 1px solid #eee;">${payment.paymentMethod}</td>
+              </tr>
+              ${payment.transactionId ? `<tr>
+                <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Transaction ID</strong></td>
+                <td style="padding: 8px; border-bottom: 1px solid #eee;">${payment.transactionId}</td>
+              </tr>` : ""}
+              <tr>
+                <td style="padding: 8px;">Date</td>
+                <td style="padding: 8px;">${new Date(payment.paymentDate).toLocaleString()}</td>
+              </tr>
+            </table>
+
+            ${notes ? `<div style="margin-top: 20px;">
+              <p><strong>Notes:</strong></p>
+              <p style="background: #f1f5f9; padding: 10px; border-radius: 5px;">${notes}</p>
+            </div>` : ""}
+
+            <p style="margin-top: 25px;">Thank you for your payment. Please keep this email for your records.</p>
+            <p style="font-size: 14px; color: #555;">Best regards,<br><strong>School Administration</strong></p>
+          </div>
+
+          <div style="background: #f1f5f9; text-align: center; padding: 10px; font-size: 12px; color: #777;">
+            © ${new Date().getFullYear()} Your School Name. All rights reserved.
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Send email to both student and parent
+    await sendEmail(recipients.join(","), "Payment Confirmation – Thank you!", emailHtml);
 
     res.status(200).json(payment);
   } catch (error) {
+    console.error("markPaymentAsPaid error:", error);
     res.status(500).json({ message: error.message });
   }
 };
+
 
 // @desc    Delete payment
 // @route   DELETE /api/payments/:id
@@ -197,19 +257,19 @@ export const generateStudentPayments = async (req, res) => {
 
     // Use the correct field: enrolledClasses
     if (!student.enrolledClasses || student.enrolledClasses.length === 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'Student is not enrolled in any classes'
       });
     }
 
-    const classIds = student.enrolledClasses.map(item => 
+    const classIds = student.enrolledClasses.map(item =>
       typeof item === 'string' ? item : (item._id || item)
     );
 
     // Get class details
     const classes = await Class.find({ _id: { $in: classIds } });
     if (classes.length === 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'No valid classes found for student',
         classIdsSearched: classIds
       });
@@ -220,22 +280,22 @@ export const generateStudentPayments = async (req, res) => {
     const currentDate = new Date();
     const currentMonth = currentDate.getMonth();
     const currentYear = currentDate.getFullYear();
-    
+
     // Get the current count for payment ID generation
     const paymentCount = await Payment.countDocuments();
-    
+
     for (let i = 0; i < months; i++) {
       const targetDate = new Date(startDate);
       targetDate.setMonth(startDate.getMonth() + i);
-      
+
       const month = targetDate.toLocaleString('default', { month: 'long' });
       const year = targetDate.getFullYear();
-      
+
       // Skip past months (before current month)
       if (year < currentYear || (year === currentYear && targetDate.getMonth() < currentMonth)) {
         continue;
       }
-      
+
       const dueDate = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0);
 
       for (const classInfo of classes) {
@@ -267,7 +327,7 @@ export const generateStudentPayments = async (req, res) => {
 
           const payment = new Payment(paymentData);
           const savedPayment = await payment.save();
-          
+
           const populatedPayment = await Payment.findById(savedPayment._id)
             .populate('student', 'name email')
             .populate('class', 'name fee subject');
@@ -278,7 +338,7 @@ export const generateStudentPayments = async (req, res) => {
     }
 
     const skippedMonths = months - (generatedPayments.length / classes.length);
-    
+
     res.status(201).json({
       message: `Generated ${generatedPayments.length} payment(s) for ${student.name}. ${skippedMonths > 0 ? `Skipped ${skippedMonths} past month(s).` : ''}`,
       payments: generatedPayments,
@@ -302,8 +362,8 @@ export const generateClassPayments = async (req, res) => {
     const { classId, month, year } = req.body;
 
     if (!classId || !month || !year) {
-      return res.status(400).json({ 
-        message: 'Class ID, Month, and Year are required' 
+      return res.status(400).json({
+        message: 'Class ID, Month, and Year are required'
       });
     }
 
@@ -311,11 +371,11 @@ export const generateClassPayments = async (req, res) => {
     const currentMonth = currentDate.getMonth();
     const currentYear = currentDate.getFullYear();
     const targetMonth = getMonthNumber(month);
-    
+
     // Check if the target month is in the past
     if (year < currentYear || (year === currentYear && targetMonth < currentMonth)) {
-      return res.status(400).json({ 
-        message: 'Cannot generate payments for past months' 
+      return res.status(400).json({
+        message: 'Cannot generate payments for past months'
       });
     }
 
@@ -326,15 +386,15 @@ export const generateClassPayments = async (req, res) => {
 
     // Use the correct field: students
     if (!classInfo.students || classInfo.students.length === 0) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         message: 'No students enrolled in this class'
       });
     }
 
-    const studentIds = classInfo.students.map(item => 
+    const studentIds = classInfo.students.map(item =>
       typeof item === 'string' ? item : (item._id || item)
     );
-    
+
     const students = await Student.find({ _id: { $in: studentIds } });
     const generatedPayments = [];
     const dueDate = new Date(year, targetMonth + 1, 0);
@@ -371,7 +431,7 @@ export const generateClassPayments = async (req, res) => {
 
         const payment = new Payment(paymentData);
         const savedPayment = await payment.save();
-        
+
         const populatedPayment = await Payment.findById(savedPayment._id)
           .populate('student', 'name email')
           .populate('class', 'name fee subject');
@@ -405,8 +465,8 @@ export const generateBulkPayments = async (req, res) => {
     const { month, year } = req.body;
 
     if (!month || !year) {
-      return res.status(400).json({ 
-        message: 'Month and Year are required' 
+      return res.status(400).json({
+        message: 'Month and Year are required'
       });
     }
 
@@ -414,11 +474,11 @@ export const generateBulkPayments = async (req, res) => {
     const currentMonth = currentDate.getMonth();
     const currentYear = currentDate.getFullYear();
     const targetMonth = getMonthNumber(month);
-    
+
     // Check if the target month is in the past
     if (year < currentYear || (year === currentYear && targetMonth < currentMonth)) {
-      return res.status(400).json({ 
-        message: 'Cannot generate payments for past months' 
+      return res.status(400).json({
+        message: 'Cannot generate payments for past months'
       });
     }
 
@@ -435,11 +495,11 @@ export const generateBulkPayments = async (req, res) => {
     for (const student of students) {
       if (student.enrolledClasses && student.enrolledClasses.length > 0) {
         // Get class details for this student's enrolled classes
-        const classIds = student.enrolledClasses.map(item => 
+        const classIds = student.enrolledClasses.map(item =>
           typeof item === 'string' ? item : (item._id || item)
         );
         const classes = await Class.find({ _id: { $in: classIds } });
-        
+
         let studentGenerated = 0;
         for (const classInfo of classes) {
           // Check if payment already exists
@@ -474,7 +534,7 @@ export const generateBulkPayments = async (req, res) => {
             studentGenerated++;
           }
         }
-        
+
         results.push({
           student: student.name,
           classes: classes.length,
@@ -540,7 +600,7 @@ export const revertPaymentToPending = async (req, res) => {
 export const getStudentCurrentPaymentStatus = async (req, res) => {
   try {
     const { studentId } = req.params;
-    
+
     if (!studentId) {
       return res.status(400).json({ message: 'Student ID is required' });
     }
@@ -555,8 +615,8 @@ export const getStudentCurrentPaymentStatus = async (req, res) => {
       month: currentMonth,
       year: currentYear
     })
-    .populate('class', 'name className fee subject')
-    .populate('collectedBy', 'name');
+      .populate('class', 'name className fee subject')
+      .populate('collectedBy', 'name');
 
     if (currentPayment) {
       return res.status(200).json({
@@ -586,9 +646,9 @@ export const getStudentCurrentPaymentStatus = async (req, res) => {
 
   } catch (error) {
     console.error('Error getting current payment status:', error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: error.message 
+      message: error.message
     });
   }
 };

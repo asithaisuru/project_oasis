@@ -92,6 +92,10 @@ const Navbar = () => {
               <FaBook className="w-4 h-4" />
               <span>Classes</span>
             </Link>
+            <Link to="/grades" className="text-white hover:text-blue-200 transition-colors duration-200 flex items-center space-x-2">
+              <FaBook className="w-4 h-4" />
+              <span>Grades</span>
+            </Link>
             <Link to="/attendance" className="text-white hover:text-blue-200 transition-colors duration-200 flex items-center space-x-2">
               <FaClipboardCheck className="w-4 h-4" />
               <span>Attendance</span>
