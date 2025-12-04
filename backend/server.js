@@ -10,6 +10,7 @@ import teacherRoutes from './routes/teachers.js';
 import classRoutes from './routes/classes.js';
 import attendanceRoutes from './routes/attendance.js';
 import paymentRoutes from './routes/payments.js';
+import gradeRoutes from './routes/gradeRoutes.js';
 
 dotenv.config();
 
@@ -30,6 +31,7 @@ app.use('/api/teachers', teacherRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/attendance', attendanceRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/grades', gradeRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

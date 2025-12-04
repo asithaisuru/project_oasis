@@ -91,7 +91,7 @@ const Classes = () => {
       console.error("Error updating class:", error);
       alert(
         "Error updating class: " +
-          (error.response?.data?.message || error.message)
+        (error.response?.data?.message || error.message)
       );
     }
   };
@@ -180,7 +180,7 @@ const Classes = () => {
       console.error("Error adding class:", error);
       alert(
         "Error adding class: " +
-          (error.response?.data?.message || error.message)
+        (error.response?.data?.message || error.message)
       );
     }
   };
@@ -198,7 +198,7 @@ const Classes = () => {
         console.error("Error deleting class:", error);
         alert(
           "Error deleting class: " +
-            (error.response?.data?.message || error.message)
+          (error.response?.data?.message || error.message)
         );
       }
     }
@@ -213,9 +213,8 @@ const Classes = () => {
 
     return (
       <span
-        className={`px-2 py-1 rounded-full text-xs font-medium ${
-          statusColors[status] || "bg-gray-100 text-gray-800"
-        }`}
+        className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[status] || "bg-gray-100 text-gray-800"
+          }`}
       >
         {status?.charAt(0).toUpperCase() + status?.slice(1)}
       </span>
@@ -227,16 +226,16 @@ const Classes = () => {
 
     return (
       <div className="text-sm">
-        <div className="flex items-center space-x-1 text-gray-600">
-          <FaCalendar className="w-3 h-3" />
-          <span>{schedule.days?.join(", ")}</span>
-        </div>
-        <div className="flex items-center space-x-1 text-gray-600">
-          <FaClock className="w-3 h-3" />
-          <span>
-            {schedule.startTime} - {schedule.endTime}
-          </span>
-        </div>
+      <div className="flex items-center space-x-1 text-gray-600">
+        <FaCalendar className="w-3 h-3" />
+        <span>{schedule.days?.map(day => day.charAt(0).toUpperCase() + day.slice(1)).join(", ")}</span>
+      </div>
+      <div className="flex items-center space-x-1 text-gray-600">
+        <FaClock className="w-3 h-3" />
+        <span>
+        {schedule.startTime} - {schedule.endTime}
+        </span>
+      </div>
       </div>
     );
   };
@@ -408,9 +407,9 @@ const Classes = () => {
             <FaBook className="mx-auto text-4xl text-gray-300 mb-4" />
             <p className="text-gray-500 text-lg">No classes found</p>
             {searchTerm ||
-            subjectFilter !== "all" ||
-            gradeFilter !== "all" ||
-            statusFilter !== "all" ? (
+              subjectFilter !== "all" ||
+              gradeFilter !== "all" ||
+              statusFilter !== "all" ? (
               <p className="text-gray-400">Try adjusting your filters</p>
             ) : (
               <p className="text-gray-400">
@@ -530,7 +529,7 @@ const Classes = () => {
                         setFormData({ ...formData, name: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      placeholder="e.g., Grade 10 Mathematics - Advanced"
+                      placeholder="Eg : 2026 O/L Maths Grade 10"
                     />
                   </div>
 
@@ -557,6 +556,9 @@ const Classes = () => {
                       <option value="Physics">Physics</option>
                       <option value="Chemistry">Chemistry</option>
                       <option value="Combined Maths">Combined Maths</option>
+                      <option value="Art">Art</option>
+                      <option value="Music">Music</option>
+                      <option value="Dancing">Dancing</option>
                     </select>
                   </div>
 
@@ -686,8 +688,8 @@ const Classes = () => {
                               const newDays = e.target.checked
                                 ? [...formData.schedule.days, day]
                                 : formData.schedule.days.filter(
-                                    (d) => d !== day
-                                  );
+                                  (d) => d !== day
+                                );
                               setFormData({
                                 ...formData,
                                 schedule: {
@@ -776,6 +778,9 @@ const Classes = () => {
                       <option value="Physics">Physics</option>
                       <option value="Chemistry">Chemistry</option>
                       <option value="Combined Maths">Combined Maths</option>
+                      <option value="Art">Art</option>
+                      <option value="Music">Music</option>
+                      <option value="Dancing">Dancing</option>
                     </select>
                   </div>
 
@@ -922,8 +927,8 @@ const Classes = () => {
                               const newDays = e.target.checked
                                 ? [...formData.schedule.days, day]
                                 : formData.schedule.days.filter(
-                                    (d) => d !== day
-                                  );
+                                  (d) => d !== day
+                                );
                               setFormData({
                                 ...formData,
                                 schedule: {

@@ -18,6 +18,7 @@ import {
   FaUserGraduate,
   FaDownload,
   FaQrcode,
+  FaWhatsapp,
 } from "react-icons/fa";
 import StatCard from "../components/StatCard";
 
@@ -78,7 +79,7 @@ const StudentFormFields = React.memo(
               required: true,
             },
             {
-              label: "Student Phone *",
+              label: "Student Phone * (Start with +94)",
               type: "tel",
               field: "phone",
               required: true,
@@ -96,7 +97,7 @@ const StudentFormFields = React.memo(
               required: true,
             },
             {
-              label: "Parent Phone *",
+              label: "Parent Phone * (Start with +94)",
               type: "tel",
               field: "parentPhone",
               required: true,
@@ -837,7 +838,21 @@ const Students = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        {[
+                        {[                          
+                          {
+                            icon: FaWhatsapp,
+                            onClick: () => {
+                              const whatsappUrl = `https://wa.me/${student.phone.replace(
+                                /[^0-9]/g,
+                                ""
+                              )}?text=Hello%20${encodeURIComponent(
+                                student.name
+                              )},${encodeURIComponent(" This is Oasis Higher Education Institute.")}`;
+                              window.open(whatsappUrl, "_blank");
+                            },
+                            title: "Contact via WhatsApp",
+                            color: "green",
+                          },
                           {
                             icon: FaUserPlus,
                             onClick: () => handleEnrollClick(student),
