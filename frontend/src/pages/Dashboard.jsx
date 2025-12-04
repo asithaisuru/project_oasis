@@ -37,6 +37,7 @@ const Dashboard = () => {
   const navigateToAttendance = () => navigate("/attendance");
   const navigateToPayments = () => navigate("/payments");
   const navigateToReports = () => navigate("/reports");
+  const navigateToGrades = () => navigate("/grades");
 
   useEffect(() => {
     fetchDashboardData();

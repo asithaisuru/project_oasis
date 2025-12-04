@@ -226,16 +226,16 @@ const Classes = () => {
 
     return (
       <div className="text-sm">
-        <div className="flex items-center space-x-1 text-gray-600">
-          <FaCalendar className="w-3 h-3" />
-          <span>{schedule.days?.join(", ")}</span>
-        </div>
-        <div className="flex items-center space-x-1 text-gray-600">
-          <FaClock className="w-3 h-3" />
-          <span>
-            {schedule.startTime} - {schedule.endTime}
-          </span>
-        </div>
+      <div className="flex items-center space-x-1 text-gray-600">
+        <FaCalendar className="w-3 h-3" />
+        <span>{schedule.days?.map(day => day.charAt(0).toUpperCase() + day.slice(1)).join(", ")}</span>
+      </div>
+      <div className="flex items-center space-x-1 text-gray-600">
+        <FaClock className="w-3 h-3" />
+        <span>
+        {schedule.startTime} - {schedule.endTime}
+        </span>
+      </div>
       </div>
     );
   };
@@ -529,7 +529,7 @@ const Classes = () => {
                         setFormData({ ...formData, name: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      placeholder="e.g., Grade 10 Mathematics - Advanced"
+                      placeholder="Eg : 2026 O/L Maths Grade 10"
                     />
                   </div>
 
