@@ -314,8 +314,4 @@ Local Deployment - Runs on local PC, accessible via browser
 
 ---
 
-<<<<<<< HEAD
 **Project Oasis** - Complete Class Administration System
-=======
-**Project Oasis** - Complete Class Administration System
->>>>>>> bb3e19c70a274541c31bda2d95dbffacef15fc60
