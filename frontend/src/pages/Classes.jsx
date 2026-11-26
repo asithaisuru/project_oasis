@@ -1,3 +1,4 @@
+import { useAuth } from '../context/AuthContext';
 import React, { useState, useEffect } from "react";
 import { classService } from "../services/classService";
 import { teacherService } from "../services/teacherService";
@@ -20,9 +21,11 @@ import {
 } from "react-icons/fa";
 
 const Classes = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [classes, setClasses] = useState([]);
   const [teachers, setTeachers] = useState([]);
-  const [students, setStudents] = useState([]);
+  const [, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [subjectFilter, setSubjectFilter] = useState("all");
@@ -264,7 +267,7 @@ const Classes = () => {
         <button
           onClick={() => setShowAddModal(true)}
           className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors duration-200"
-        >
+         disabled={!isAdmin}>
           <FaPlus className="w-4 h-4" />
           <span>Add New Class</span>
         </button>
@@ -489,14 +492,14 @@ const Classes = () => {
                       onClick={() => handleEditClass(classItem)}
                       className="text-green-600 hover:text-green-800 transition-colors duration-200"
                       title="Edit Class"
-                    >
+                     disabled={!isAdmin}>
                       <FaEdit className="w-4 h-4" />
                     </button>
                     <button
                       onClick={() => handleDeleteClass(classItem._id)}
                       className="text-red-600 hover:text-red-800 transition-colors duration-200"
                       title="Delete Class"
-                    >
+                     disabled={!isAdmin}>
                       <FaTrash className="w-4 h-4" />
                     </button>
                   </div>

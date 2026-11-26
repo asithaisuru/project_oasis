@@ -1,7 +1,9 @@
+import { escapeHtml } from '../utils/html.js';
+import { scopeFor } from '../middleware/dataScope.js';
 import Grade from '../models/Grade.js';
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
-import { sendEmail } from '../utils/sendEmail.js';
+import { queueEmail } from '../utils/emailOutbox.js';
 // import { sendTestEmail as sendEmail } from '../utils/testEmailService.js';
 
 // @desc    Get all grades
@@ -62,14 +64,14 @@ const getGrades = async (req, res) => {
     const sort = {};
     sort[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
-    const grades = await Grade.find(query)
+    const grades = await Grade.find(query).and([scopeFor('Grade', req)])
       .populate('student', 'name email studentId grade')
       .populate('class', 'name subject grade classId')
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort(sort);
 
-    const total = await Grade.countDocuments(query);
+    const total = await Grade.countDocuments(query).and([scopeFor('Grade', req)]);
 
     res.json({
       success: true,
@@ -94,7 +96,7 @@ const getGrades = async (req, res) => {
 // @access  Private
 const getGrade = async (req, res) => {
   try {
-    const grade = await Grade.findById(req.params.id)
+    const grade = await Grade.findById(req.params.id).and([scopeFor('Grade', req)])
       .populate('student', 'name email studentId phone grade')
       .populate('class', 'name subject grade teacher schedule');
 
@@ -142,7 +144,7 @@ const createGrade = async (req, res) => {
     }
 
     // Check if student exists
-    const studentExists = await Student.findById(student);
+    const studentExists = await Student.findById(student).and([scopeFor('Student', req)]);
     if (!studentExists) {
       return res.status(404).json({
         success: false,
@@ -151,7 +153,7 @@ const createGrade = async (req, res) => {
     }
 
     // Check if class exists
-    const classExists = await Class.findById(classId);
+    const classExists = await Class.findById(classId).and([scopeFor('Class', req)]);
     if (!classExists) {
       return res.status(404).json({
         success: false,
@@ -210,13 +212,13 @@ const updateGrade = async (req, res) => {
     if (examType) updateData.examType = examType;
     if (weightage) updateData.weightage = weightage;
     if (comments !== undefined) updateData.comments = comments;
-    if (isPublished !== undefined) updateData.isPublished = isPublished;
+    if (isPublished !== undefined) return res.status(400).json({ success: false, message: 'Use the explicit publishing endpoint to preserve publication timestamps' });
 
     const grade = await Grade.findByIdAndUpdate(
       req.params.id,
       updateData,
       { new: true, runValidators: true }
-    )
+    ).and([scopeFor('Grade', req)])
     .populate('student', 'name email studentId')
     .populate('class', 'name subject');
 
@@ -253,7 +255,7 @@ const updateGrade = async (req, res) => {
 // @access  Private/Admin
 const deleteGrade = async (req, res) => {
   try {
-    const grade = await Grade.findById(req.params.id);
+    const grade = await Grade.findById(req.params.id).and([scopeFor('Grade', req)]);
 
     if (!grade) {
       return res.status(404).json({
@@ -262,7 +264,7 @@ const deleteGrade = async (req, res) => {
       });
     }
 
-    await Grade.findByIdAndDelete(req.params.id);
+    await Grade.findByIdAndDelete(req.params.id).and([scopeFor('Grade', req)]);
 
     res.json({
       success: true,
@@ -282,7 +284,7 @@ const deleteGrade = async (req, res) => {
 // @access  Private
 const getGradesByStudent = async (req, res) => {
   try {
-    const grades = await Grade.find({ student: req.params.studentId })
+    const grades = await Grade.find({ student: req.params.studentId }).and([scopeFor('Grade', req)])
       .populate('class', 'name subject grade teacher')
       .sort({ examDate: -1 });
 
@@ -316,7 +318,7 @@ const getGradesByClass = async (req, res) => {
       query.examType = examType;
     }
 
-    const grades = await Grade.find(query)
+    const grades = await Grade.find(query).and([scopeFor('Grade', req)])
       .populate('student', 'name email studentId grade')
       .sort({ marks: -1 });
 
@@ -337,156 +339,42 @@ const getGradesByClass = async (req, res) => {
 // @desc    Publish grade and send email notification
 // @route   POST /api/grades/:id/publish
 // @access  Private/Admin/Teacher
-export const publishGrade = async (req, res) => {
+async function publishOne(id, req) {
+  const timestamp = new Date();
+  let grade = await Grade.findOneAndUpdate({ _id: id, isPublished: { $ne: true } }, { $set: { isPublished: true, publishedAt: timestamp, notificationPending: true } }, { new: true }).and([scopeFor('Grade', req)]).populate('student').populate('class');
+  if (!grade) grade = await Grade.findById(id).and([scopeFor('Grade', req)]).populate('student').populate('class');
+  return grade;
+}
+export const publishGrade = async (req, res, next) => {
   try {
-    const { id } = req.params;
-    
-    // Find the grade and populate student and class details
-    const grade = await Grade.findById(id)
-      .populate('student', 'name email parentEmail grade')
-      .populate('class', 'name subject gradeLevel teacher');
-    
-    if (!grade) {
-      return res.status(404).json({
-        success: false,
-        message: 'Grade not found'
-      });
-    }
-    
-    // If already published, just return
-    if (grade.isPublished) {
-      return res.json({
-        success: true,
-        message: 'Grade already published',
-        data: grade
-      });
-    }
-    
-    // Update grade as published
-    grade.isPublished = true;
-    grade.publishedAt = new Date();
-    await grade.save();
-    
-    // Build recipient list (student + parent)
-    const recipients = [];
-    
-    if (grade.student.email) {
-      recipients.push(grade.student.email);
-    }
-    
-    if (grade.student.parentEmail) {
-      recipients.push(grade.student.parentEmail);
-    }
-    
-    // Only send email if we have recipients
-    if (recipients.length > 0) {
-      await sendGradeEmail(grade, recipients);
-    }
-    
-    res.json({
-      success: true,
-      message: 'Grade published successfully',
-      data: grade
-    });
-  } catch (error) {
-    console.error('Error publishing grade:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
+    const grade = await publishOne(req.params.id, req);
+    if (!grade) return res.status(404).json({ success: false, message: 'Grade not found' });
+    const delivery = await sendGradeEmail(grade, [grade.student?.email, grade.student?.parentEmail]);
+    res.json({ success: true, message: 'Grade published successfully', data: grade, ...delivery });
+  } catch (error) { next(error); }
 };
-
-
-// @desc    Bulk publish grades for a class with filters and send email notifications
-// @route   POST /api/grades/class/:classId/publish
-// @access  Private/Admin/Teacher
-export const bulkPublishGrades = async (req, res) => {
+export const bulkPublishGrades = async (req, res, next) => {
   try {
-    const { classId } = req.params;
-    const { examType, subject } = req.body;
-    
-    // Build query
-    const query = { 
-      class: classId,
-      isPublished: false 
-    };
-    
-    if (examType && examType !== 'all') {
-      query.examType = examType;
+    const query = { class: req.params.classId };
+    for (const field of ['examType', 'subject']) if (req.body[field] && req.body[field] !== 'all') query[field] = req.body[field];
+    const grades = await Grade.find(query).and([scopeFor('Grade', req)]).select('_id');
+    if (!grades.length) return res.status(404).json({ success: false, message: 'No grades found for these criteria' });
+    const published = [];
+    for (const item of grades) {
+      const grade = await publishOne(item._id, req);
+      if (!grade) continue;
+      await sendGradeEmail(grade, [grade.student?.email, grade.student?.parentEmail]);
+      published.push(grade);
     }
-    
-    if (subject && subject !== 'all') {
-      query.subject = subject;
-    }
-    
-    // Find unpublish grades for the class
-    const grades = await Grade.find(query)
-      .populate('student', 'name email parentEmail grade')
-      .populate('class', 'name subject gradeLevel teacher');
-    
-    if (grades.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No unpublished grades found for this criteria'
-      });
-    }
-    
-    const publishedGrades = [];
-    const emailErrors = [];
-    
-    // Publish each grade
-    for (const grade of grades) {
-      try {
-        grade.isPublished = true;
-        grade.publishedAt = new Date();
-        await grade.save();
-        
-        // Build recipient list
-        const recipients = [];
-        
-        if (grade.student.email) {
-          recipients.push(grade.student.email);
-        }
-        
-        if (grade.student.parentEmail) {
-          recipients.push(grade.student.parentEmail);
-        }
-        
-        // Send email if we have recipients
-        if (recipients.length > 0) {
-          await sendGradeEmail(grade, recipients);
-        }
-        
-        publishedGrades.push(grade);
-      } catch (error) {
-        emailErrors.push({
-          student: grade.student?.name,
-          error: error.message
-        });
-      }
-    }
-    
-    res.json({
-      success: true,
-      message: `${publishedGrades.length} grades published successfully`,
-      data: publishedGrades,
-      errors: emailErrors.length > 0 ? emailErrors : undefined
-    });
-  } catch (error) {
-    console.error('Error bulk publishing grades:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error'
-    });
-  }
+    res.json({ success: true, message: `${published.length} grades published successfully`, data: published });
+  } catch (error) { next(error); }
 };
-
 
 // @desc    Send grade email notification
 // @route   Internal function
 // @access  Private
-const sendGradeEmail = async (grade, recipients) => {
+export const sendGradeEmail = async (grade, recipients) => {
+  if (!grade.student) return { emailSent: false, emailPending: false };
   // Determine performance message
   let performanceMessage = '';
   let performanceColor = '#000';
@@ -514,24 +402,24 @@ const sendGradeEmail = async (grade, recipients) => {
       <div style="max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden;">
         <div style="background: #7c3aed; color: #fff; text-align: center; padding: 20px;">
           <h1 style="margin: 0; font-size: 22px;">📚 Grade Published Notification</h1>
-          <p style="margin: 5px 0 0; opacity: 0.9;">${grade.class?.name || grade.subject} - ${grade.examType.charAt(0).toUpperCase() + grade.examType.slice(1)} Exam</p>
+          <p style="margin: 5px 0 0; opacity: 0.9;">${escapeHtml(grade.class?.name || grade.subject)} - ${escapeHtml(grade.examType.charAt(0).toUpperCase() + grade.examType.slice(1))} Exam</p>
         </div>
 
         <div style="padding: 25px;">
-          <p>Dear ${grade.student.name},</p>
-          <p>Your ${grade.subject} ${grade.examType} grade has been published.</p>
+          <p>Dear ${escapeHtml(grade.student.name)},</p>
+          <p>Your ${escapeHtml(grade.subject)} ${escapeHtml(grade.examType)} grade has been published.</p>
           
           <!-- Grade Summary Card -->
-          <div style="background: #f8fafc; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid ${performanceColor};">
+          <div style="background: #f8fafc; border-radius: 8px; padding: 20px; margin: 20px 0; border-left: 4px solid ${escapeHtml(performanceColor)};">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
               <div>
-                <h3 style="margin: 0; color: #1e293b;">${grade.subject}</h3>
+                <h3 style="margin: 0; color: #1e293b;">${escapeHtml(grade.subject)}</h3>
                 <p style="margin: 5px 0; color: #64748b; font-size: 14px;">
-                  ${grade.examType.charAt(0).toUpperCase() + grade.examType.slice(1)} Exam • ${grade.class?.name || ''}
+                  ${escapeHtml(grade.examType.charAt(0).toUpperCase() + grade.examType.slice(1))} Exam • ${escapeHtml(grade.class?.name || '')}
                 </p>
               </div>
               <div style="text-align: center;">
-                <div style="font-size: 32px; font-weight: bold; color: ${performanceColor};">${grade.marks}%</div>
+                <div style="font-size: 32px; font-weight: bold; color: ${escapeHtml(performanceColor)};">${escapeHtml(grade.marks)}%</div>
                 <div style="font-size: 14px; color: #64748b;">Marks Obtained</div>
               </div>
             </div>
@@ -539,24 +427,24 @@ const sendGradeEmail = async (grade, recipients) => {
             <div style="display: flex; gap: 20px; margin-top: 15px;">
               <div>
                 <div style="font-size: 12px; color: #64748b;">Grade</div>
-                <div style="font-size: 18px; font-weight: bold; color: #1e293b;">${grade.grade}</div>
+                <div style="font-size: 18px; font-weight: bold; color: #1e293b;">${escapeHtml(grade.grade)}</div>
               </div>
               <div>
                 <div style="font-size: 12px; color: #64748b;">Weightage</div>
-                <div style="font-size: 18px; font-weight: bold; color: #1e293b;">${grade.weightage}%</div>
+                <div style="font-size: 18px; font-weight: bold; color: #1e293b;">${escapeHtml(grade.weightage)}%</div>
               </div>
               <div>
                 <div style="font-size: 12px; color: #64748b;">Exam Date</div>
                 <div style="font-size: 18px; font-weight: bold; color: #1e293b;">
-                  ${new Date(grade.examDate).toLocaleDateString()}
+                  ${escapeHtml(new Date(grade.examDate).toLocaleDateString())}
                 </div>
               </div>
             </div>
             
             <!-- Performance Message -->
-            <div style="margin-top: 15px; padding: 10px; background: ${performanceColor}15; border-radius: 6px; border: 1px solid ${performanceColor}30;">
-              <p style="margin: 0; color: ${performanceColor}; font-weight: bold;">
-                ${performanceMessage}
+            <div style="margin-top: 15px; padding: 10px; background: ${escapeHtml(performanceColor)}15; border-radius: 6px; border: 1px solid ${escapeHtml(performanceColor)}30;">
+              <p style="margin: 0; color: ${escapeHtml(performanceColor)}; font-weight: bold;">
+                ${escapeHtml(performanceMessage)}
               </p>
             </div>
           </div>
@@ -565,7 +453,7 @@ const sendGradeEmail = async (grade, recipients) => {
           ${grade.comments ? `
           <div style="margin: 20px 0; padding: 15px; background: #f1f5f9; border-radius: 6px;">
             <h4 style="margin: 0 0 10px; color: #334155;">Teacher's Comments</h4>
-            <p style="margin: 0; color: #475569;">"${grade.comments}"</p>
+            <p style="margin: 0; color: #475569;">"${escapeHtml(grade.comments)}"</p>
           </div>
           ` : ''}
 
@@ -575,20 +463,20 @@ const sendGradeEmail = async (grade, recipients) => {
             <table style="width: 100%; border-collapse: collapse;">
               <tr>
                 <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Student ID</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${grade.student.studentId || 'N/A'}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${escapeHtml(grade.student.studentId || 'N/A')}</td>
               </tr>
               <tr>
                 <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Class</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${grade.class?.name || 'N/A'}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">${escapeHtml(grade.class?.name || 'N/A')}</td>
               </tr>
               <tr>
                 <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; color: #64748b;">Grade Level</td>
-                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Grade ${grade.student.grade || grade.class?.gradeLevel || 'N/A'}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #e2e8f0; font-weight: bold;">Grade ${escapeHtml(grade.student.grade || grade.class?.gradeLevel || 'N/A')}</td>
               </tr>
               <tr>
                 <td style="padding: 8px; color: #64748b;">Published On</td>
                 <td style="padding: 8px; font-weight: bold;">
-                  ${new Date(grade.publishedAt).toLocaleDateString()} at ${new Date(grade.publishedAt).toLocaleTimeString()}
+                  ${escapeHtml(new Date(grade.publishedAt).toLocaleDateString())} at ${escapeHtml(new Date(grade.publishedAt).toLocaleTimeString())}
                 </td>
               </tr>
             </table>
@@ -607,7 +495,7 @@ const sendGradeEmail = async (grade, recipients) => {
           
           <p style="font-size: 14px; color: #555; margin-top: 30px;">
             Best regards,<br>
-            <strong>${grade.class?.teacher?.name || 'The Teaching Staff'}</strong><br>
+            <strong>${escapeHtml(grade.class?.teacher?.name || 'The Teaching Staff')}</strong><br>
             <span style="color: #7c3aed;">Oasis Institute of Higher Education</span>
           </p>
         </div>
@@ -617,19 +505,17 @@ const sendGradeEmail = async (grade, recipients) => {
             This is an automated notification. Please do not reply to this email.
           </p>
           <p style="margin: 5px 0;">
-            © ${new Date().getFullYear()} Oasis Institute of Higher Education. All rights reserved.
+            © ${escapeHtml(new Date().getFullYear())} Oasis Institute of Higher Education. All rights reserved.
           </p>
         </div>
       </div>
     </div>
   `;
   
-  // Send email
-  await sendEmail(
-    recipients.join(','),
-    `📊 ${grade.subject} Grade Published - ${grade.student.name}`,
-    emailHtml
-  );
+  const result = await queueEmail(`grade:${grade._id}:${Number(grade.publishedAt)}`, recipients,
+    `Grade published: ${grade.subject}`, emailHtml, { model: 'Grade', record: grade._id, eventAt: grade.publishedAt });
+  await Grade.updateOne({ _id: grade._id, publishedAt: grade.publishedAt }, { notificationPending: false });
+  return result;
 };
 
 

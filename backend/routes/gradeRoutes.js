@@ -29,6 +29,6 @@ router.route('/student/:studentId')
 router.route('/class/:classId')
     .get(protect, getGradesByClass);
 
-router.post('/:id/publish', publishGrade);
-router.post('/class/:classId/publish-bulk', bulkPublishGrades);
+router.post('/:id/publish', protect, publishGrade);
+router.post('/class/:classId/publish-bulk', protect, bulkPublishGrades);
 export default router;

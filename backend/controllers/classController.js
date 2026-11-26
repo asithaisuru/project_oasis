@@ -1,3 +1,4 @@
+import { scopeFor } from '../middleware/dataScope.js';
 import Class from '../models/Class.js';
 import Teacher from '../models/Teacher.js';
 import Student from '../models/Student.js';
@@ -31,14 +32,14 @@ const getClasses = async (req, res) => {
       query.grade = grade;
     }
 
-    const classes = await Class.find(query)
+    const classes = await Class.find(query).and([scopeFor('Class', req)])
       .populate('teacher', 'name email')
       .populate('students', 'name email studentId')
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
 
-    const total = await Class.countDocuments(query);
+    const total = await Class.countDocuments(query).and([scopeFor('Class', req)]);
 
     res.json({
       success: true,
@@ -63,7 +64,7 @@ const getClasses = async (req, res) => {
 // @access  Private
 const getClass = async (req, res) => {
   try {
-    const classData = await Class.findById(req.params.id)
+    const classData = await Class.findById(req.params.id).and([scopeFor('Class', req)])
       .populate('teacher', 'name email phone subjects')
       .populate('students', 'name email studentId phone grade');
 
@@ -165,7 +166,7 @@ const updateClass = async (req, res) => {
       req.params.id,
       updateData,
       { new: true, runValidators: true }
-    ).populate('teacher', 'name email').populate('students', 'name email');
+    ).and([scopeFor('Class', req)]).populate('teacher', 'name email').populate('students', 'name email');
 
     if (!classData) {
       return res.status(404).json({
@@ -200,7 +201,7 @@ const updateClass = async (req, res) => {
 // @access  Private/Admin
 const deleteClass = async (req, res) => {
   try {
-    const classData = await Class.findById(req.params.id);
+    const classData = await Class.findById(req.params.id).and([scopeFor('Class', req)]);
 
     if (!classData) {
       return res.status(404).json({
@@ -217,7 +218,7 @@ const deleteClass = async (req, res) => {
       });
     }
 
-    await Class.findByIdAndDelete(req.params.id);
+    await Class.findByIdAndDelete(req.params.id).and([scopeFor('Class', req)]);
 
     res.json({
       success: true,
@@ -246,7 +247,7 @@ const addStudentToClass = async (req, res) => {
       });
     }
 
-    const classData = await Class.findById(req.params.id);
+    const classData = await Class.findById(req.params.id).and([scopeFor('Class', req)]);
     if (!classData) {
       return res.status(404).json({
         success: false,
@@ -287,7 +288,7 @@ const addStudentToClass = async (req, res) => {
 // @access  Private/Admin
 const removeStudentFromClass = async (req, res) => {
   try {
-    const classData = await Class.findById(req.params.id);
+    const classData = await Class.findById(req.params.id).and([scopeFor('Class', req)]);
     if (!classData) {
       return res.status(404).json({
         success: false,

@@ -76,7 +76,7 @@ function AppContent() {
         } />
         
         <Route path="/payments" element={
-          <ProtectedRoute>
+          <ProtectedRoute adminOnly>
             <Payments />
           </ProtectedRoute>
         } />

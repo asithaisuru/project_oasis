@@ -26,9 +26,5 @@ export const authService = {
     return response.data;
   },
 
-  // Logout (client-side only)
-  logout: () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-  }
+  logout: async () => (await api.post('/auth/logout')).data
 };

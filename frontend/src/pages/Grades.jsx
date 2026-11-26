@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { gradeService } from "../services/gradeService";
 import { classService } from "../services/classService";
 import { studentService } from "../services/studentService";
@@ -55,16 +55,23 @@ const Grades = () => {
         examDate: new Date().toISOString().split('T')[0]
     });
 
-    const [selectedClassStudents, setSelectedClassStudents] = useState([]);
+    const [, setSelectedClassStudents] = useState([]);
 
     const gradeOptions = ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D', 'F'];
     const examTypeOptions = ['mid-term', 'final', 'quiz', 'assignment', 'project'];
 
+    const loadGrades = useCallback(async (params) => {
+        setLoading(true);
+        try { const response = await gradeService.getGrades(params); setGrades(response.data || []); }
+        catch { setGrades([]); }
+        finally { setLoading(false); }
+    }, []);
+
     useEffect(() => {
-        fetchGrades();
+        loadGrades({ sortBy: "examDate", sortOrder: "desc" });
         fetchClasses();
         fetchStudents();
-    }, []);
+    }, [loadGrades]);
 
     useEffect(() => {
         if (formData.class) {
@@ -153,9 +160,7 @@ const Grades = () => {
         }
     };
 
-    const fetchGrades = async () => {
-        try {
-            setLoading(true);
+    const fetchGrades = () => {
             const params = {
                 studentId: studentFilter !== "all" ? studentFilter : undefined,
                 classId: classFilter !== "all" ? classFilter : undefined,
@@ -167,16 +172,7 @@ const Grades = () => {
                 search: searchTerm || undefined
             };
 
-            console.log("Fetching grades with params:", params);
-            const response = await gradeService.getGrades(params);
-            console.log("Grades response:", response);
-            setGrades(response.data || []);
-        } catch (error) {
-            console.error("Error fetching grades:", error);
-            setGrades([]);
-        } finally {
-            setLoading(false);
-        }
+        return loadGrades(params);
     };
 
     const fetchClasses = async () => {
@@ -221,9 +217,9 @@ const Grades = () => {
     const handleAddGrade = async (e) => {
         e.preventDefault();
         try {
-            console.log("Adding grade with data:", formData);
-            const response = await gradeService.createGrade(formData);
-            console.log("Add grade response:", response);
+
+            await gradeService.createGrade(formData);
+
             setShowAddModal(false);
             resetForm();
             fetchGrades();

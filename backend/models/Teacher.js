@@ -1,3 +1,4 @@
+import { allocateHumanId } from '../utils/humanId.js';
 import mongoose from 'mongoose';
 
 const teacherSchema = new mongoose.Schema({
@@ -50,19 +51,8 @@ const teacherSchema = new mongoose.Schema({
 });
 
 // Generate teacher ID before saving
-teacherSchema.pre('save', async function(next) {
-  if (!this.teacherId) {
-    try {
-      const TeacherModel = mongoose.model('Teacher');
-      const count = await TeacherModel.countDocuments();
-      this.teacherId = `TCH${String(count + 1).padStart(4, '0')}`;
-      next();
-    } catch (error) {
-      next(error);
-    }
-  } else {
-    next();
-  }
+teacherSchema.pre('validate', async function () {
+  if (this.isNew) this.teacherId = await allocateHumanId(this.constructor, 'teacherId', 'TCH', this.teacherId);
 });
 
 export default mongoose.model('Teacher', teacherSchema);

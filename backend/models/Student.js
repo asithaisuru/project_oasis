@@ -1,3 +1,4 @@
+import { allocateHumanId } from '../utils/humanId.js';
 import mongoose from 'mongoose';
 
 const studentSchema = new mongoose.Schema({
@@ -79,19 +80,8 @@ const studentSchema = new mongoose.Schema({
 });
 
 // Generate student ID before saving
-studentSchema.pre('save', async function(next) {
-  if (!this.studentId) {
-    try {
-      const StudentModel = mongoose.model('Student');
-      const count = await StudentModel.countDocuments();
-      this.studentId = `STU${String(count + 1).padStart(4, '0')}`;
-      next();
-    } catch (error) {
-      next(error);
-    }
-  } else {
-    next();
-  }
+studentSchema.pre('validate', async function () {
+  if (this.isNew) this.studentId = await allocateHumanId(this.constructor, 'studentId', 'STU', this.studentId);
 });
 
 export default mongoose.model('Student', studentSchema);

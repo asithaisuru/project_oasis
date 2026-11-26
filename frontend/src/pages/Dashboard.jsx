@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import { useAuth } from '../context/AuthContext';
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { studentService } from "../services/studentService";
 import { teacherService } from "../services/teacherService";
@@ -19,6 +20,8 @@ import {
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalTeachers: 0,
@@ -37,13 +40,8 @@ const Dashboard = () => {
   const navigateToAttendance = () => navigate("/attendance");
   const navigateToPayments = () => navigate("/payments");
   const navigateToReports = () => navigate("/reports");
-  const navigateToGrades = () => navigate("/grades");
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -53,7 +51,7 @@ const Dashboard = () => {
           studentService.getStudents(),
           teacherService.getTeachers(),
           classService.getClasses(),
-          paymentService.getPayments(),
+          isAdmin ? paymentService.getPayments() : Promise.resolve([]),
         ]);
 
       const students = studentsRes.data || [];
@@ -100,9 +98,9 @@ const Dashboard = () => {
         .slice(0, 5);
 
       setStats({
-        totalStudents: students.length,
-        totalTeachers: teachers.length,
-        totalClasses: classes.length,
+        totalStudents: studentsRes.pagination?.totalStudents ?? students.length,
+        totalTeachers: teachersRes.pagination?.totalTeachers ?? teachers.length,
+        totalClasses: classesRes.pagination?.totalClasses ?? classes.length,
         totalRevenue,
         newStudentsThisMonth,
       });
@@ -121,7 +119,9 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isAdmin]);
+
+  useEffect(() => { fetchDashboardData(); }, [fetchDashboardData]);
 
   const StatCard = ({ icon: Icon, title, value, subtitle, color, trend }) => (
     <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 hover:shadow-xl transition-shadow duration-300">
@@ -208,15 +208,15 @@ const Dashboard = () => {
         />
         <StatCard
           icon={FaBook}
-          title="Active Classes"
+          title="Classes"
           value={stats.totalClasses}
           color="text-purple-600"
         />
         <StatCard
           icon={FaMoneyBillWave}
-          title="Revenue"
-          value={`Rs. ${stats.totalRevenue.toLocaleString()}`}
-          subtitle="total to be collected"
+          title={isAdmin ? "Pending fees" : "Staff access"}
+          value={isAdmin ? `Rs. ${stats.totalRevenue.toLocaleString()}` : "Teacher"}
+          subtitle={isAdmin ? "total to be collected" : "Assigned classes only"}
           color="text-red-600"
         />
       </div>
@@ -235,7 +235,7 @@ const Dashboard = () => {
               <QuickAction
                 icon={FaUserPlus}
                 title="Students"
-                description="Manage all students"
+                description={isAdmin ? "Manage all students" : "View assigned students"}
                 color="text-blue-600"
                 onClick={navigateToStudents}
                 disabled={false}
@@ -269,7 +269,7 @@ const Dashboard = () => {
                 description="Manage fee payments"
                 color="text-yellow-600"
                 onClick={navigateToPayments}
-                disabled={false}
+                disabled={!isAdmin}
               />
               <QuickAction
                 icon={FaChartLine}
@@ -399,9 +399,9 @@ const Dashboard = () => {
                 </span>
               </div>
               <div className="flex justify-between items-center py-2">
-                <span className="text-gray-600">Revenue to be collected</span>
+                <span className="text-gray-600">{isAdmin ? "Pending fees" : "Staff access"}</span>
                 <span className="font-semibold text-red-600">
-                  Rs. {stats.totalRevenue.toLocaleString()}
+                  {isAdmin ? `Rs. ${stats.totalRevenue.toLocaleString()}` : "Teacher"}
                 </span>
               </div>
             </div>

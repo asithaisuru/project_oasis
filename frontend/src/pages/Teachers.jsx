@@ -1,3 +1,4 @@
+import { useAuth } from '../context/AuthContext';
 // pages/Teachers.jsx
 import React, { useState, useEffect } from "react";
 import { teacherService } from "../services/teacherService";
@@ -18,6 +19,8 @@ import {
 } from "react-icons/fa";
 
 const Teachers = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [teachers, setTeachers] = useState([]);
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +36,6 @@ const Teachers = () => {
     phone: "",
     subject: "",
     status: "active",
-    teacherId: `TCH${Date.now()}`,
     hireDate: new Date().toISOString().split("T")[0],
     salary: 0,
     address: {
@@ -51,26 +53,6 @@ const Teachers = () => {
   });
 
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const user = localStorage.getItem("user");
-
-    console.log("=== AUTH DEBUG ===");
-    console.log("Token exists:", !!token);
-    console.log("Token value:", token);
-    console.log("User exists:", !!user);
-    console.log("User value:", user);
-    console.log("=== END DEBUG ===");
-
-    if (!token) {
-      alert(
-        "Please log in to access teachers management. You will be redirected to login."
-      );
-      setTimeout(() => {
-        window.location.href = "/login";
-      }, 2000);
-      return;
-    }
-
     fetchTeachers();
     fetchClasses();
   }, []);
@@ -101,15 +83,15 @@ const Teachers = () => {
   const handleAddTeacher = async (e) => {
     e.preventDefault();
     try {
-      console.log("=== FRONTEND DEBUG ===");
-      console.log("Form data before sending:", formData);
-      console.log("Subject value:", formData.subject);
-      console.log("Subject type:", typeof formData.subject);
-      console.log("All form keys:", Object.keys(formData));
-      console.log("=== END DEBUG ===");
 
-      const response = await teacherService.createTeacher(formData);
-      console.log("Teacher created successfully:", response);
+
+
+
+
+
+
+      await teacherService.createTeacher(formData);
+
 
       // Reset form on success
       setFormData({
@@ -118,8 +100,7 @@ const Teachers = () => {
         phone: "",
         subject: "",
         status: "active",
-        teacherId: `TCH${Date.now()}`,
-        hireDate: new Date().toISOString().split("T")[0],
+            hireDate: new Date().toISOString().split("T")[0],
         salary: 0,
         address: {
           street: "",
@@ -139,9 +120,9 @@ const Teachers = () => {
     } catch (error) {
       console.error("Error adding teacher:", error);
       console.error("Error response:", error.response?.data);
-      
+
       if (error.response?.data?.errors) {
-        const errorDetails = error.response.data.errors.map(err => 
+        const errorDetails = error.response.data.errors.map(err =>
           `• ${err.path}: ${err.msg}`
         ).join('\n');
         alert(`Validation errors:\n\n${errorDetails}`);
@@ -313,7 +294,7 @@ const Teachers = () => {
         <button
           onClick={() => setShowAddModal(true)}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors duration-200"
-        >
+         disabled={!isAdmin}>
           <FaPlus className="w-4 h-4" />
           <span>Add New Teacher</span>
         </button>
@@ -493,14 +474,14 @@ const Teachers = () => {
                             onClick={() => handleEditClick(teacher)}
                             className="text-green-600 hover:text-green-900 transition-colors duration-200 p-1 rounded hover:bg-green-50"
                             title="Edit Teacher"
-                          >
+                           disabled={!isAdmin}>
                             <FaEdit className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => handleDeleteTeacher(teacher._id)}
                             className="text-red-600 hover:text-red-900 transition-colors duration-200 p-1 rounded hover:bg-red-50"
                             title="Delete Teacher"
-                          >
+                           disabled={!isAdmin}>
                             <FaTrash className="w-4 h-4" />
                           </button>
                         </div>

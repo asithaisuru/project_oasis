@@ -130,7 +130,6 @@ const UserInfoCard = ({ user }) => (
 );
 
 const ProfileForm = ({ 
-  user, 
   profileData, 
   setProfileData, 
   isEditing, 

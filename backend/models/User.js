@@ -34,8 +34,9 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: ['admin', 'teacher'],
-    default: 'admin'
+    default: 'teacher'
   },
+  teacherProfile: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher' },
   isActive: {
     type: Boolean,
     default: true

@@ -1,41 +1,13 @@
-Make a database named "oasis".
+Administrator bootstrap
 
-Then a collection named "users"
+Use backend/utils/createAdmin.js with an explicitly confirmed database name and
+your own ADMIN_EMAIL and unique ADMIN_PASSWORD environment values. The password
+must have at least 12 characters. This command refuses to change an existing
+active administrator. Review the target database and take a backup first.
 
-then in the shell past the below code to add the admin user.
+node utils/createAdmin.js --confirm-database=<exact-database-name>
 
-
-db.users.insertOne({
-  name: "System Administrator",
-  email: "admin@system.com",
-  password: "$2a$12$YRXsc1Z0v8GF8qRIfMnYkuA.W5a4jT.aEGmNTC1mtzGb173jaIr2y",
-  phone: "0712345678",
-  address: "Colombo, Sri Lanka",
-  bio: "Superuser with full system access.",
-  role: "admin",
-  isActive: true,
-  lastLogin: null,
-  createdAt: new Date(),
-  updatedAt: new Date()
-});
-
-or
-
-{
-  "name": "System Administrator",
-  "email": "admin@system.com",
-  "password": "$2a$12$YRXsc1Z0v8GF8qRIfMnYkuA.W5a4jT.aEGmNTC1mtzGb173jaIr2y",
-  "phone": "0712345678",
-  "address": "Colombo, Sri Lanka",
-  "bio": "Superuser with full system access.",
-  "role": "admin",
-  "isActive": true,
-  "lastLogin": null,
-  "createdAt": { "$date": { "$numberLong": "1731400000000" } },
-  "updatedAt": { "$date": { "$numberLong": "1731400000000" } }
-}
-
-
-
-Email : admin@system.com
-password : Admin@123
+No reusable password or precomputed hash is supplied. Existing accounts created
+from historical example credentials require an operator-led password rotation
+and session revocation before any public deployment. Do not run bootstrap or
+migration commands against production as part of automated verification.

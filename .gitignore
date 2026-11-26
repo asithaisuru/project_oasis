@@ -1,0 +1,21 @@
+
+
+# Local credentials, generated evidence and disposable test artifacts
+.env
+.env.*
+!.env.example
+!.env.*.example
+node_modules/
+dist/
+coverage/
+.cache/
+test-results/
+playwright-report/
+*.log
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+__pycache__/
+.pytest_cache/
+.venv/
