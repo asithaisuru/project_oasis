@@ -1,3 +1,4 @@
+import { scopeFor } from '../middleware/dataScope.js';
 import Attendance from "../models/Attendance.js";
 import Class from "../models/Class.js";
 import Student from "../models/Student.js";
@@ -21,25 +22,13 @@ export const getAttendance = async (req, res) => {
     }
     if (student) query["students.student"] = student;
 
-    const attendance = await Attendance.find(query)
+    const attendance = await Attendance.find(query).and([scopeFor('Attendance', req)])
       .populate("class", "name subject grade")
       .populate("students.student", "name email studentId grade profilePicture")
       .populate("takenBy", "name")
       .sort({ date: -1, createdAt: -1 });
 
-    console.log("🔍 Attendance query results:", {
-      query,
-      count: attendance.length,
-      records: attendance.map(rec => ({
-        date: rec.date,
-        studentCount: rec.students.length,
-        students: rec.students.map(s => ({
-          studentId: s.student?._id,
-          name: s.student?.name,
-          status: s.status
-        }))
-      }))
-    });
+
 
     res.json({
       success: true,
@@ -75,7 +64,7 @@ export const markAttendance = async (req, res) => {
     let attendance = await Attendance.findOne({
       class: classId,
       date: { $gte: startOfDay, $lte: endOfDay },
-    });
+    }).and([scopeFor('Attendance', req)]);
 
     if (!attendance) {
       attendance = new Attendance({
@@ -135,7 +124,7 @@ export const bulkMarkAttendance = async (req, res) => {
   try {
     const { class: classId, date, status } = req.body;
 
-    const classStudents = await Student.find({ enrolledClasses: classId });
+    const classStudents = await Student.find({ enrolledClasses: classId }).and([scopeFor('Student', req)]);
     
     const attendanceDate = new Date(date);
     const startOfDay = new Date(attendanceDate.setHours(0, 0, 0, 0));
@@ -144,7 +133,7 @@ export const bulkMarkAttendance = async (req, res) => {
     let attendance = await Attendance.findOne({
       class: classId,
       date: { $gte: startOfDay, $lte: endOfDay }
-    });
+    }).and([scopeFor('Attendance', req)]);
 
     if (!attendance) {
       attendance = new Attendance({
@@ -199,9 +188,9 @@ export const scanQRCode = async (req, res) => {
   try {
     const { qrData } = req.body;
 
-    console.log("🔍 QR Scan Request Received");
-    console.log("QR Data received:", qrData);
-    console.log("Full request body:", req.body);
+
+
+
 
     if (!qrData) {
       return res.status(400).json({
@@ -222,20 +211,22 @@ export const scanQRCode = async (req, res) => {
       } else {
         throw new Error("QR data must be a string or object");
       }
-      console.log("✅ Successfully parsed QR data:", parsedData);
+
     } catch (parseError) {
-      console.log("❌ JSON parse error:", parseError.message);
+
       return res.status(400).json({
         success: false,
         message: "Invalid QR code format: " + parseError.message,
       });
     }
 
+    if (!parsedData || typeof parsedData !== 'object' || Array.isArray(parsedData)) return res.status(400).json({ success: false, message: 'Invalid QR data object' });
     // Extract studentId from different possible field names
     const studentId = parsedData.studentId || parsedData.studentID;
     const type = parsedData.type;
+    if (!mongoose.isObjectIdOrHexString(studentId)) return res.status(400).json({ success: false, message: 'Invalid student ID' });
 
-    console.log("📋 Extracted fields - studentId:", studentId, "type:", type);
+
 
     if (!type) {
       return res.status(400).json({
@@ -263,24 +254,24 @@ export const scanQRCode = async (req, res) => {
       });
     }
 
-    console.log("🔎 Looking for student with ID:", studentId);
+
 
     // Get student details with all information
-    const student = await Student.findById(studentId)
+    const student = await Student.findById(studentId).and([scopeFor('Student', req)])
       .populate("enrolledClasses", "name grade subject")
       .select(
         "name email studentId phone parentName parentPhone address grade school status profilePicture feeStatus feeAmount enrolledClasses"
       );
 
     if (!student) {
-      console.log("❌ Student not found with ID:", studentId);
+
       return res.status(404).json({
         success: false,
         message: "Student not found with ID: " + studentId,
       });
     }
 
-    console.log("✅ Found student:", student.name);
+
 
     res.json({
       success: true,

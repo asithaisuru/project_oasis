@@ -1,7 +1,9 @@
+import { escapeHtml } from '../utils/html.js';
+import { scopeFor } from '../middleware/dataScope.js';
 import Payment from '../models/Payment.js';
 import Student from '../models/Student.js';
 import Class from '../models/Class.js';
-import { sendEmail } from "../utils/sendEmail.js";
+import { queueEmail } from '../utils/emailOutbox.js';
 
 // ===== ORIGINAL CRUD FUNCTIONS =====
 
@@ -10,7 +12,7 @@ import { sendEmail } from "../utils/sendEmail.js";
 // @access  Private
 export const getPayments = async (req, res) => {
   try {
-    const payments = await Payment.find()
+    const payments = await Payment.find().and([scopeFor('Payment', req)])
       .populate('student', 'name email')
       .populate('class', 'name className fee subject')
       .populate('collectedBy', 'name')
@@ -27,7 +29,7 @@ export const getPayments = async (req, res) => {
 // @access  Private
 export const getPaymentById = async (req, res) => {
   try {
-    const payment = await Payment.findById(req.params.id)
+    const payment = await Payment.findById(req.params.id).and([scopeFor('Payment', req)])
       .populate('student', 'name email phone')
       .populate('class', 'name className fee subject')
       .populate('collectedBy', 'name');
@@ -54,7 +56,7 @@ export const createPayment = async (req, res) => {
     const payment = new Payment(paymentData);
     const savedPayment = await payment.save();
 
-    const populatedPayment = await Payment.findById(savedPayment._id)
+    const populatedPayment = await Payment.findById(savedPayment._id).and([scopeFor('Payment', req)])
       .populate('student', 'name email')
       .populate('class', 'name className fee subject')
       .populate('collectedBy', 'name');
@@ -74,11 +76,12 @@ export const createPayment = async (req, res) => {
 // @access  Private
 export const updatePayment = async (req, res) => {
   try {
+    if (['status', 'paymentDate', 'paymentId', 'notificationPending'].some((field) => req.body[field] !== undefined) || Object.keys(req.body).some((field) => field.startsWith('$'))) return res.status(400).json({ message: 'Use explicit payment-state endpoints; receipt identity and timestamps are server controlled' });
     const payment = await Payment.findByIdAndUpdate(
       req.params.id,
       req.body,
       { new: true, runValidators: true }
-    )
+    ).and([scopeFor('Payment', req)])
       .populate('student', 'name email')
       .populate('class', 'name className fee subject')
       .populate('collectedBy', 'name');
@@ -100,36 +103,21 @@ export const updatePayment = async (req, res) => {
 // @desc    Mark payment as paid
 // @route   PATCH /api/payments/:id/mark-paid
 // @access  Private
-export const markPaymentAsPaid = async (req, res) => {
+export const markPaymentAsPaid = async (req, res, next) => {
   try {
-    const { paymentMethod, transactionId, notes } = req.body;
+    const { paymentMethod = 'cash', transactionId, notes } = req.body;
+    if (!['cash', 'card', 'bank-transfer', 'online'].includes(paymentMethod)) return res.status(400).json({ message: 'Invalid payment method' });
+    let payment = await Payment.findOneAndUpdate({ _id: req.params.id, status: { $ne: 'paid' } }, { $set: { status: 'paid', paymentMethod, transactionId, notes, paymentDate: new Date(), notificationPending: true } }, { new: true, runValidators: true }).and([scopeFor('Payment', req)]).populate('student').populate('class');
+    if (!payment) payment = await Payment.findById(req.params.id).and([scopeFor('Payment', req)]).populate('student').populate('class');
+    if (!payment) return res.status(404).json({ message: 'Payment not found' });
+    const delivery = await sendPaymentEmail(payment);
+    res.status(200).json({ ...payment.toObject(), ...delivery });
+  } catch (error) { next(error); }
+};
 
-    // Find and update payment, populate student and class
-    const payment = await Payment.findByIdAndUpdate(
-      req.params.id,
-      {
-        status: "paid",
-        paymentMethod: paymentMethod || "cash",
-        transactionId,
-        notes,
-        paymentDate: new Date(),
-      },
-      { new: true }
-    )
-      .populate("student", "name email parentEmail")
-      .populate("class", "name className fee subject")
-      .populate("collectedBy", "name");
-
-    if (!payment) {
-      return res.status(404).json({ message: "Payment not found" });
-    }
-
-    // Build recipient list
-    const recipients = [payment.student.email];
-    if (payment.student.parentEmail) {
-      recipients.push(payment.student.parentEmail);
-    }
-
+export const sendPaymentEmail = async (payment) => {
+  if (!payment.student) return { emailSent: false, emailPending: false };
+  const notes = payment.notes;
     // Pretty HTML email template
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; color: #333; background-color: #f7f9fc; padding: 20px;">
@@ -139,31 +127,31 @@ export const markPaymentAsPaid = async (req, res) => {
           </div>
 
           <div style="padding: 25px;">
-            <p>Dear ${payment.student.name},</p>
-            <p>Your payment for <strong>${payment.class?.name || payment.class?.className}</strong> has been successfully marked as <span style="color: #16a34a; font-weight: bold;">PAID</span>.</p>
+            <p>Dear ${escapeHtml(payment.student.name)},</p>
+            <p>Your payment for <strong>${escapeHtml(payment.class?.name || payment.class?.className)}</strong> has been successfully marked as <span style="color: #16a34a; font-weight: bold;">PAID</span>.</p>
 
             <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
               <tr>
                 <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Amount</strong></td>
-                <td style="padding: 8px; border-bottom: 1px solid #eee;">${payment.class?.fee}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(payment.amount)}</td>
               </tr>
               <tr>
                 <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Payment Method</strong></td>
-                <td style="padding: 8px; border-bottom: 1px solid #eee;">${payment.paymentMethod}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(payment.paymentMethod)}</td>
               </tr>
               ${payment.transactionId ? `<tr>
                 <td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Transaction ID</strong></td>
-                <td style="padding: 8px; border-bottom: 1px solid #eee;">${payment.transactionId}</td>
+                <td style="padding: 8px; border-bottom: 1px solid #eee;">${escapeHtml(payment.transactionId)}</td>
               </tr>` : ""}
               <tr>
                 <td style="padding: 8px;">Date</td>
-                <td style="padding: 8px;">${new Date(payment.paymentDate).toLocaleString()}</td>
+                <td style="padding: 8px;">${escapeHtml(new Date(payment.paymentDate).toLocaleString())}</td>
               </tr>
             </table>
 
             ${notes ? `<div style="margin-top: 20px;">
               <p><strong>Notes:</strong></p>
-              <p style="background: #f1f5f9; padding: 10px; border-radius: 5px;">${notes}</p>
+              <p style="background: #f1f5f9; padding: 10px; border-radius: 5px;">${escapeHtml(notes)}</p>
             </div>` : ""}
 
             <p style="margin-top: 25px;">Thank you for your payment. Please keep this email for your records.</p>
@@ -171,29 +159,23 @@ export const markPaymentAsPaid = async (req, res) => {
           </div>
 
           <div style="background: #f1f5f9; text-align: center; padding: 10px; font-size: 12px; color: #777;">
-            © ${new Date().getFullYear()} Your School Name. All rights reserved.
+            © ${escapeHtml(new Date().getFullYear())} Your School Name. All rights reserved.
           </div>
         </div>
       </div>
     `;
 
-    // Send email to both student and parent
-    await sendEmail(recipients.join(","), "Payment Confirmation – Thank you!", emailHtml);
-
-    res.status(200).json(payment);
-  } catch (error) {
-    console.error("markPaymentAsPaid error:", error);
-    res.status(500).json({ message: error.message });
-  }
+  const result = await queueEmail(`payment:${payment._id}:${Number(payment.paymentDate)}`, [payment.student.email, payment.student.parentEmail], 'Payment confirmation', emailHtml, { model: 'Payment', record: payment._id, eventAt: payment.paymentDate });
+  await Payment.updateOne({ _id: payment._id, paymentDate: payment.paymentDate }, { notificationPending: false });
+  return result;
 };
-
 
 // @desc    Delete payment
 // @route   DELETE /api/payments/:id
 // @access  Private
 export const deletePayment = async (req, res) => {
   try {
-    const payment = await Payment.findByIdAndDelete(req.params.id);
+    const payment = await Payment.findByIdAndDelete(req.params.id).and([scopeFor('Payment', req)]);
 
     if (!payment) {
       return res.status(404).json({ message: 'Payment not found' });
@@ -210,7 +192,7 @@ export const deletePayment = async (req, res) => {
 // @access  Private
 export const getPaymentsByStudent = async (req, res) => {
   try {
-    const payments = await Payment.find({ student: req.params.studentId })
+    const payments = await Payment.find({ student: req.params.studentId }).and([scopeFor('Payment', req)])
       .populate('class', 'name className fee subject')
       .populate('collectedBy', 'name')
       .sort({ createdAt: -1 });
@@ -226,7 +208,7 @@ export const getPaymentsByStudent = async (req, res) => {
 // @access  Private
 export const getPaymentsByClass = async (req, res) => {
   try {
-    const payments = await Payment.find({ class: req.params.classId })
+    const payments = await Payment.find({ class: req.params.classId }).and([scopeFor('Payment', req)])
       .populate('student', 'name email')
       .populate('collectedBy', 'name')
       .sort({ createdAt: -1 });
@@ -250,7 +232,7 @@ export const generateStudentPayments = async (req, res) => {
       return res.status(400).json({ message: 'Student ID is required' });
     }
 
-    const student = await Student.findById(studentId);
+    const student = await Student.findById(studentId).and([scopeFor('Student', req)]);
     if (!student) {
       return res.status(404).json({ message: 'Student not found' });
     }
@@ -267,7 +249,7 @@ export const generateStudentPayments = async (req, res) => {
     );
 
     // Get class details
-    const classes = await Class.find({ _id: { $in: classIds } });
+    const classes = await Class.find({ _id: { $in: classIds } }).and([scopeFor('Class', req)]);
     if (classes.length === 0) {
       return res.status(400).json({
         message: 'No valid classes found for student',
@@ -282,7 +264,6 @@ export const generateStudentPayments = async (req, res) => {
     const currentYear = currentDate.getFullYear();
 
     // Get the current count for payment ID generation
-    const paymentCount = await Payment.countDocuments();
 
     for (let i = 0; i < months; i++) {
       const targetDate = new Date(startDate);
@@ -304,15 +285,12 @@ export const generateStudentPayments = async (req, res) => {
           class: classInfo._id,
           month,
           year
-        });
+        }).and([scopeFor('Payment', req)]);
 
         if (!existingPayment) {
           // Manually generate payment ID to ensure it's set
-          const paymentNumber = paymentCount + generatedPayments.length + 1;
-          const paymentId = `PAY${String(paymentNumber).padStart(4, '0')}`;
 
           const paymentData = {
-            paymentId, // Manually set the payment ID
             student: studentId,
             class: classInfo._id,
             amount: classInfo.fee || 0,
@@ -328,7 +306,7 @@ export const generateStudentPayments = async (req, res) => {
           const payment = new Payment(paymentData);
           const savedPayment = await payment.save();
 
-          const populatedPayment = await Payment.findById(savedPayment._id)
+          const populatedPayment = await Payment.findById(savedPayment._id).and([scopeFor('Payment', req)])
             .populate('student', 'name email')
             .populate('class', 'name fee subject');
 
@@ -379,7 +357,7 @@ export const generateClassPayments = async (req, res) => {
       });
     }
 
-    const classInfo = await Class.findById(classId);
+    const classInfo = await Class.findById(classId).and([scopeFor('Class', req)]);
     if (!classInfo) {
       return res.status(404).json({ message: 'Class not found' });
     }
@@ -395,12 +373,11 @@ export const generateClassPayments = async (req, res) => {
       typeof item === 'string' ? item : (item._id || item)
     );
 
-    const students = await Student.find({ _id: { $in: studentIds } });
+    const students = await Student.find({ _id: { $in: studentIds } }).and([scopeFor('Student', req)]);
     const generatedPayments = [];
     const dueDate = new Date(year, targetMonth + 1, 0);
 
     // Get the current count for payment ID generation
-    const paymentCount = await Payment.countDocuments();
 
     for (const student of students) {
       const existingPayment = await Payment.findOne({
@@ -408,15 +385,12 @@ export const generateClassPayments = async (req, res) => {
         class: classId,
         month,
         year
-      });
+      }).and([scopeFor('Payment', req)]);
 
       if (!existingPayment) {
         // Manually generate payment ID
-        const paymentNumber = paymentCount + generatedPayments.length + 1;
-        const paymentId = `PAY${String(paymentNumber).padStart(4, '0')}`;
 
         const paymentData = {
-          paymentId, // Manually set the payment ID
           student: student._id,
           class: classId,
           amount: classInfo.fee || 0,
@@ -432,7 +406,7 @@ export const generateClassPayments = async (req, res) => {
         const payment = new Payment(paymentData);
         const savedPayment = await payment.save();
 
-        const populatedPayment = await Payment.findById(savedPayment._id)
+        const populatedPayment = await Payment.findById(savedPayment._id).and([scopeFor('Payment', req)])
           .populate('student', 'name email')
           .populate('class', 'name fee subject');
 
@@ -483,14 +457,13 @@ export const generateBulkPayments = async (req, res) => {
     }
 
     // Get all students with their enrolled classes
-    const students = await Student.find();
+    const students = await Student.find().and([scopeFor('Student', req)]);
     const dueDate = new Date(year, targetMonth + 1, 0);
 
     let totalGenerated = 0;
     const results = [];
 
     // Get the current count for payment ID generation
-    const paymentCount = await Payment.countDocuments();
 
     for (const student of students) {
       if (student.enrolledClasses && student.enrolledClasses.length > 0) {
@@ -498,7 +471,7 @@ export const generateBulkPayments = async (req, res) => {
         const classIds = student.enrolledClasses.map(item =>
           typeof item === 'string' ? item : (item._id || item)
         );
-        const classes = await Class.find({ _id: { $in: classIds } });
+        const classes = await Class.find({ _id: { $in: classIds } }).and([scopeFor('Class', req)]);
 
         let studentGenerated = 0;
         for (const classInfo of classes) {
@@ -508,15 +481,12 @@ export const generateBulkPayments = async (req, res) => {
             class: classInfo._id,
             month,
             year
-          });
+          }).and([scopeFor('Payment', req)]);
 
           if (!existingPayment) {
             // Manually generate payment ID
-            const paymentNumber = paymentCount + totalGenerated + 1;
-            const paymentId = `PAY${String(paymentNumber).padStart(4, '0')}`;
 
             const paymentData = {
-              paymentId, // Manually set the payment ID
               student: student._id,
               class: classInfo._id,
               amount: classInfo.fee || 0,
@@ -579,7 +549,7 @@ export const revertPaymentToPending = async (req, res) => {
         paymentMethod: 'cash'
       },
       { new: true }
-    )
+    ).and([scopeFor('Payment', req)])
       .populate('student', 'name email')
       .populate('class', 'name className fee subject')
       .populate('collectedBy', 'name');
@@ -614,7 +584,7 @@ export const getStudentCurrentPaymentStatus = async (req, res) => {
       student: studentId,
       month: currentMonth,
       year: currentYear
-    })
+    }).and([scopeFor('Payment', req)])
       .populate('class', 'name className fee subject')
       .populate('collectedBy', 'name');
 
@@ -623,6 +593,7 @@ export const getStudentCurrentPaymentStatus = async (req, res) => {
         success: true,
         data: {
           status: currentPayment.status,
+          ...(req.user.role === 'admin' ? {
           paymentId: currentPayment.paymentId,
           amount: currentPayment.amount,
           month: currentPayment.month,
@@ -630,6 +601,7 @@ export const getStudentCurrentPaymentStatus = async (req, res) => {
           dueDate: currentPayment.dueDate,
           paymentDate: currentPayment.paymentDate,
           paymentMethod: currentPayment.paymentMethod
+          } : {})
         }
       });
     }

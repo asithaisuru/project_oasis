@@ -55,9 +55,9 @@ const Navbar = () => {
     setIsDropdownOpen(!isDropdownOpen);
   };
 
-  const handleLogout = () => {
-    logout();
-    setIsDropdownOpen(false);
+  const handleLogout = async () => {
+    try { await logout(); setIsDropdownOpen(false); }
+    catch { window.alert('Sign out failed. Please retry when your connection is restored.'); }
   };
 
   return (
@@ -100,10 +100,10 @@ const Navbar = () => {
               <FaClipboardCheck className="w-4 h-4" />
               <span>Attendance</span>
             </Link>
-            <Link to="/payments" className="text-white hover:text-blue-200 transition-colors duration-200 flex items-center space-x-2">
+            {user?.role === 'admin' && (<Link to="/payments" className="text-white hover:text-blue-200 transition-colors duration-200 flex items-center space-x-2">
               <FaCreditCard className="w-4 h-4" />
               <span>Payments</span>
-            </Link>
+            </Link>)}
           </div>
 
           {/* Right Section - Profile & Mobile Menu */}

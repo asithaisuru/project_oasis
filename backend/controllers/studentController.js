@@ -1,3 +1,4 @@
+import { scopeFor } from '../middleware/dataScope.js';
 import Student from "../models/Student.js";
 import Class from "../models/Class.js";
 
@@ -22,13 +23,13 @@ const getStudents = async (req, res) => {
       query.status = status;
     }
 
-    const students = await Student.find(query)
+    const students = await Student.find(query).and([scopeFor('Student', req)])
       .populate("enrolledClasses", "name subject")
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
 
-    const total = await Student.countDocuments(query);
+    const total = await Student.countDocuments(query).and([scopeFor('Student', req)]);
 
     res.json({
       success: true,
@@ -53,7 +54,7 @@ const getStudents = async (req, res) => {
 // @access  Private
 const getStudent = async (req, res) => {
   try {
-    const student = await Student.findById(req.params.id).populate(
+    const student = await Student.findById(req.params.id).and([scopeFor('Student', req)]).populate(
       "enrolledClasses"
     );
 
@@ -156,7 +157,7 @@ const updateStudent = async (req, res) => {
     const student = await Student.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true,
-    }).populate("enrolledClasses");
+    }).and([scopeFor('Student', req)]).populate("enrolledClasses");
 
     if (!student) {
       return res.status(404).json({
@@ -183,7 +184,7 @@ const updateStudent = async (req, res) => {
 // @access  Private/Admin
 const deleteStudent = async (req, res) => {
   try {
-    const student = await Student.findById(req.params.id);
+    const student = await Student.findById(req.params.id).and([scopeFor('Student', req)]);
 
     if (!student) {
       return res.status(404).json({
@@ -200,7 +201,7 @@ const deleteStudent = async (req, res) => {
       });
     }
 
-    await Student.findByIdAndDelete(req.params.id);
+    await Student.findByIdAndDelete(req.params.id).and([scopeFor('Student', req)]);
 
     res.json({
       success: true,
@@ -222,8 +223,8 @@ const enrollStudent = async (req, res) => {
   try {
     const { classId } = req.body;
 
-    const student = await Student.findById(req.params.id);
-    const classToEnroll = await Class.findById(classId);
+    const student = await Student.findById(req.params.id).and([scopeFor('Student', req)]);
+    const classToEnroll = await Class.findById(classId).and([scopeFor('Class', req)]);
 
     if (!student || !classToEnroll) {
       return res.status(404).json({
@@ -291,7 +292,7 @@ export const enrollStudentsInClass = async (req, res) => {
         studentId,
         { $addToSet: { enrolledClasses: classId } }, // Use $addToSet to avoid duplicates
         { new: true }
-      )
+      ).and([scopeFor('Student', req)])
     );
 
     const updatedStudents = await Promise.all(updatePromises);
@@ -324,7 +325,7 @@ const updateStudentEnrollments = async (req, res) => {
         .json({ success: false, message: "classIds must be an array." });
     }
 
-    const student = await Student.findById(studentId);
+    const student = await Student.findById(studentId).and([scopeFor('Student', req)]);
     if (!student) {
       return res
         .status(404)
@@ -344,7 +345,7 @@ const updateStudentEnrollments = async (req, res) => {
       await Class.updateMany(
         { _id: { $in: classesToRemove } },
         { $pull: { students: studentId } }
-      );
+      ).and([scopeFor('Class', req)]);
     }
 
     // Add student to new classes
@@ -352,14 +353,14 @@ const updateStudentEnrollments = async (req, res) => {
       await Class.updateMany(
         { _id: { $in: classesToAdd } },
         { $addToSet: { students: studentId } } // Use $addToSet to prevent duplicates
-      );
+      ).and([scopeFor('Class', req)]);
     }
 
     // Finally, update the student's own list of enrolled classes
     student.enrolledClasses = newClassIds;
     await student.save();
 
-    const updatedStudent = await Student.findById(studentId).populate(
+    const updatedStudent = await Student.findById(studentId).and([scopeFor('Student', req)]).populate(
       "enrolledClasses",
       "name subject"
     );
@@ -380,7 +381,7 @@ const updateStudentEnrollments = async (req, res) => {
 
 export const getStudentById = async (req, res) => {
   try {
-    const student = await Student.findById(req.params.id).populate(
+    const student = await Student.findById(req.params.id).and([scopeFor('Student', req)]).populate(
       "enrolledClasses",
       "name fee subject grade"
     ); // Populate the enrolledClasses
@@ -426,7 +427,7 @@ export const uploadProfilePicture = async (req, res) => {
       studentId,
       { profilePicture },
       { new: true, runValidators: true }
-    );
+    ).and([scopeFor('Student', req)]);
 
     if (!student) {
       return res.status(404).json({

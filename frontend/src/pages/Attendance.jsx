@@ -1,5 +1,5 @@
 // Attendance.jsx
-import React, { useState, useEffect, useRef, use } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { attendanceService } from "../services/attendanceService";
 import { classService } from "../services/classService";
 import { studentService } from "../services/studentService";
@@ -45,7 +45,7 @@ const Attendance = () => {
   // Scanner state
   const [showScanner, setShowScanner] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [scanStatus, setScanStatus] = useState("idle");
+  const [, setScanStatus] = useState("idle");
   const [scanMessage, setScanMessage] = useState("");
   const [cameraError, setCameraError] = useState("");
 
@@ -57,7 +57,6 @@ const Attendance = () => {
   // QR modal
   const [showQRModal, setShowQRModal] = useState(false);
   const [selectedStudentForQR, setSelectedStudentForQR] = useState(null);
-  const [manualQRInput, setManualQRInput] = useState("");
 
   // Search state
   const [searchTerm, setSearchTerm] = useState("");
@@ -76,35 +75,16 @@ const Attendance = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Add this useEffect to debug attendance data
+  const scannedStudentId = scannedStudent?._id;
   useEffect(() => {
-    console.log("📊 Current scannedStudents state:", {
-      count: scannedStudents.length,
-      students: scannedStudents.map((s) => ({
-        student: s.student?._id || s.student,
-        name: s.student?.name || "Unknown",
-        status: s.status,
-        timestamp: s.timestamp,
-      })),
-    });
-  }, [scannedStudents]);
-
-  useEffect(() => {
-    console.log(
-      "🔄 Component mounted - Today's date should be:",
-      new Date().toISOString().split("T")[0]
-    );
-    console.log("📅 Current selectedDate:", selectedDate);
-  }, []);
-
-  useEffect(() => {
+    let active = true;
     const getStudentCurrentPaymentStatus = async (studentId) => {
       if (!studentId) return;
       try {
         const response = await attendanceService.getStudentCurrentPaymentStatus(
           studentId
         );
-        if (response.success) {
+        if (response.success && active) {
           setScannedStudent((prev) => ({
             ...prev,
             feeStatus: response.data.status || "unknown",
@@ -119,8 +99,9 @@ const Attendance = () => {
       }
     };
 
-    getStudentCurrentPaymentStatus(scannedStudent?._id);
-  }, [scannedStudent]);
+    getStudentCurrentPaymentStatus(scannedStudentId);
+    return () => { active = false; };
+  }, [scannedStudentId]);
 
   useEffect(() => {
     if (selectedClass && selectedDate) {
@@ -169,7 +150,7 @@ const Attendance = () => {
       const queryDate = new Date(selectedDate);
       queryDate.setHours(0, 0, 0, 0);
 
-      console.log("📅 Fetching attendance for date:", queryDate.toISOString());
+
 
       const res = await attendanceService.getAttendance({
         class: selectedClass,
@@ -177,7 +158,7 @@ const Attendance = () => {
       });
 
       const record = res.data?.[0] || null;
-      console.log("📊 Attendance record from server:", record);
+
 
       if (record && record.students) {
         // Transform the data to match what scannedStudents expects
@@ -189,10 +170,10 @@ const Attendance = () => {
           _id: studentRecord._id,
         }));
 
-        console.log("🔄 Processed attendance data:", attendanceData);
+
         setScannedStudents(attendanceData);
       } else {
-        console.log("❌ No attendance record found for this date");
+
         setScannedStudents([]);
       }
     } catch (err) {
@@ -406,7 +387,6 @@ const Attendance = () => {
 
   const markAttendance = async (studentId, status, options = {}) => {
     try {
-      const currentTime = new Date().toISOString();
       const payload = {
         class: selectedClass,
         date: new Date(selectedDate).toISOString(),
@@ -415,10 +395,10 @@ const Attendance = () => {
         notes: options.notes || `Marked ${status} manually`,
       };
 
-      console.log("Sending attendance payload:", payload);
+
 
       const response = await attendanceService.markAttendance(payload);
-      console.log("Attendance service response:", response);
+
 
       if (response.success) {
         // Refresh the attendance data to get the latest from server
@@ -438,21 +418,16 @@ const Attendance = () => {
   const markAttendanceFromModal = async (status) => {
     if (!scannedStudent) return;
 
-    console.log(
-      "Marking attendance for:",
-      scannedStudent._id,
-      "Status:",
-      status
-    );
+
     setMarkingAttendance(true);
 
     try {
-      const response = await markAttendance(scannedStudent._id, status, {
+      await markAttendance(scannedStudent._id, status, {
         notes: `Marked ${status} via QR scan`,
         studentObj: scannedStudent,
       });
 
-      console.log("Attendance marked successfully:", response);
+
 
       setShowStudentModal(false);
       setScannedStudent(null);
@@ -502,17 +477,6 @@ const Attendance = () => {
     if (status === "overdue")
       return <FaExclamationTriangle className="text-red-500" />;
     return <FaMoneyBillWave className="text-yellow-500" />;
-  };
-
-  const calculateStats = () => {
-    const total = students.filter((s) =>
-      s.enrolledClasses?.includes(selectedClass)
-    ).length;
-    const present = scannedStudents.filter(
-      (s) => s.status === "present"
-    ).length;
-    const percent = total > 0 ? Math.round((present / total) * 100) : 0;
-    return { present, total, percent };
   };
 
   const exportCSV = () => {
@@ -588,14 +552,13 @@ const Attendance = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      console.log("CSV exported successfully");
+
     } catch (error) {
       console.error("Error exporting CSV:", error);
       alert("Error exporting CSV file. Please try again.");
     }
   };
 
-  const stats = calculateStats();
   const enrolledStudents = students.filter((s) =>
     s.enrolledClasses?.some((cls) => {
       if (cls && typeof cls === "object") {
@@ -971,12 +934,8 @@ const Attendance = () => {
                               minute: "2-digit",
                               hour12: true,
                             });
-                          } catch (error) {
-                            console.log(
-                              "Error parsing timestamp:",
-                              timestamp,
-                              error
-                            );
+                          } catch {
+
                             return "--:--";
                           }
                         })()

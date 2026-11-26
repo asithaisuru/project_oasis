@@ -1,3 +1,4 @@
+import { allocateHumanId } from '../utils/humanId.js';
 import mongoose from "mongoose";
 
 const paymentSchema = new mongoose.Schema(
@@ -29,6 +30,7 @@ const paymentSchema = new mongoose.Schema(
       type: Number,
       required: [true, "Please add payment year"],
     },
+    notificationPending: { type: Boolean, default: false },
     paymentDate: {
       type: Date,
       default: Date.now,
@@ -67,12 +69,8 @@ const paymentSchema = new mongoose.Schema(
 );
 
 // Generate payment ID before saving
-paymentSchema.pre("save", async function (next) {
-  if (!this.paymentId) {
-    const count = await mongoose.model("Payment").countDocuments();
-    this.paymentId = `PAY${String(count + 1).padStart(4, "0")}`;
-  }
-  next();
+paymentSchema.pre('validate', async function () {
+  if (this.isNew) this.paymentId = await allocateHumanId(this.constructor, 'paymentId', 'PAY', this.paymentId);
 });
 
 export default mongoose.model("Payment", paymentSchema);

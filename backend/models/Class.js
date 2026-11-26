@@ -1,3 +1,4 @@
+import { allocateHumanId } from '../utils/humanId.js';
 import mongoose from 'mongoose';
 
 const classSchema = new mongoose.Schema({
@@ -74,19 +75,8 @@ const classSchema = new mongoose.Schema({
 });
 
 // Generate class ID before saving
-classSchema.pre('save', async function(next) {
-  if (!this.classId) {
-    try {
-      const ClassModel = mongoose.model('Class');
-      const count = await ClassModel.countDocuments();
-      this.classId = `CLS${String(count + 1).padStart(4, '0')}`;
-      next();
-    } catch (error) {
-      next(error);
-    }
-  } else {
-    next();
-  }
+classSchema.pre('validate', async function () {
+  if (this.isNew) this.classId = await allocateHumanId(this.constructor, 'classId', 'CLS', this.classId);
 });
 
 // Update current strength when students are added/removed

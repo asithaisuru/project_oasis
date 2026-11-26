@@ -11,7 +11,7 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -26,22 +26,22 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (isLoading) return;
-    
+
     setIsLoading(true);
     setError('');
 
     try {
-      console.log('Login component: Calling login function...');
+
       const result = await login(formData.email, formData.password);
-      console.log('Login component: Received result:', result);
-      
+
+
       if (result.success) {
-        console.log('Login successful, navigating to dashboard');
+
         navigate('/dashboard');
       } else {
-        console.log('Login failed with message:', result.message);
+
         setError(result.message);
       }
     } catch (error) {
@@ -64,9 +64,9 @@ const Login = () => {
   };
 
   return (
-    <div 
+    <div
       className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8"
-      onClick={() => console.log('Page clicked')} // Debug click events
+       // Debug click events
     >
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
@@ -85,8 +85,8 @@ const Login = () => {
         </div>
 
         {/* Login Form */}
-        <form 
-          className="mt-8 space-y-6 bg-white p-8 rounded-2xl shadow-lg" 
+        <form
+          className="mt-8 space-y-6 bg-white p-8 rounded-2xl shadow-lg"
           onSubmit={handleSubmit}
           onClick={handleFormClick}
         >
@@ -165,8 +165,8 @@ const Login = () => {
             </div>
 
             <div className="text-sm">
-              <Link 
-                to="/forgot-password" 
+              <Link
+                to="/forgot-password"
                 className="font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200"
               >
                 Forgot your password?

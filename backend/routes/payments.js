@@ -16,32 +16,32 @@ import {
   revertPaymentToPending,
   getStudentCurrentPaymentStatus
 } from '../controllers/paymentController.js';
-import { protect } from '../middleware/auth.js';
+import { protect, admin } from '../middleware/auth.js';
 
 const router = express.Router();
 
 // Original CRUD routes
 router.route('/')
-  .get(protect, getPayments)
-  .post(protect, createPayment);
+  .get(protect, admin, getPayments)
+  .post(protect, admin, createPayment);
 
 router.route('/:id')
-  .get(protect, getPaymentById)
-  .put(protect, updatePayment)
-  .delete(protect, deletePayment);
+  .get(protect, admin, getPaymentById)
+  .put(protect, admin, updatePayment)
+  .delete(protect, admin, deletePayment);
 
 // New automated payment generation routes
-router.post('/generate/student', protect, generateStudentPayments);
-router.post('/generate/class', protect, generateClassPayments);
-router.post('/generate/bulk', protect, generateBulkPayments);
+router.post('/generate/student', protect, admin, generateStudentPayments);
+router.post('/generate/class', protect, admin, generateClassPayments);
+router.post('/generate/bulk', protect, admin, generateBulkPayments);
 
 // Original routes
-router.patch('/:id/mark-paid', protect, markPaymentAsPaid);
-router.get('/student/:studentId', protect, getPaymentsByStudent);
-router.get('/class/:classId', protect, getPaymentsByClass);
+router.patch('/:id/mark-paid', protect, admin, markPaymentAsPaid);
+router.get('/student/:studentId', protect, admin, getPaymentsByStudent);
+router.get('/class/:classId', protect, admin, getPaymentsByClass);
 
 // Add this with your other routes
-router.patch('/:id/revert-pending', protect, revertPaymentToPending);
+router.patch('/:id/revert-pending', protect, admin, revertPaymentToPending);
 
 router.get('/student/:studentId/current', protect, getStudentCurrentPaymentStatus);
 

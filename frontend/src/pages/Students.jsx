@@ -1,3 +1,5 @@
+import { useAuth } from '../context/AuthContext';
+import { escapeHtml } from '../utils/html.js';
 import React, { useState, useEffect, useCallback } from "react";
 import { studentService } from "../services/studentService";
 import { classService } from "../services/classService";
@@ -258,6 +260,8 @@ const QRCodeModal = React.memo(
 );
 
 const Students = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   // State
   const [students, setStudents] = useState([]);
   const [classes, setClasses] = useState([]);
@@ -340,32 +344,11 @@ const Students = () => {
       reader.onloadend = () => {
         const base64String = reader.result;
 
-        // Show size warning for large images
-        if (base64String.length > 1000000) {
-          console.log(
-            "Large image detected, will upload separately after student creation"
-          );
-        }
-
         setFormData((prev) => ({ ...prev, profilePicture: base64String }));
       };
       reader.readAsDataURL(file);
     }
   }, []);
-
-  const uploadProfilePicture = async (studentId, profilePicture) => {
-    const response = await axios.put(
-      `${API_URL}/${studentId}/profile-picture`,
-      { profilePicture },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${getToken()}`,
-        },
-      }
-    );
-    return response;
-  };
 
   const resetFormData = useCallback(() => {
     setFormData({
@@ -425,7 +408,7 @@ const Students = () => {
             newStudent._id,
             profilePicture
           );
-          console.log("Profile picture uploaded separately");
+
         } catch (uploadError) {
           console.warn(
             "Student created but profile picture upload failed:",
@@ -650,7 +633,7 @@ const Students = () => {
             setFormError("");
           }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors duration-200"
-        >
+         disabled={!isAdmin}>
           <FaPlus className="w-4 h-4" />
           <span>Add New Student</span>
         </button>
@@ -838,7 +821,7 @@ const Students = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex justify-end space-x-2">
-                        {[                          
+                        {[
                           {
                             icon: FaWhatsapp,
                             onClick: () => {
@@ -883,7 +866,7 @@ const Students = () => {
                             title: "Delete Student",
                             color: "red",
                           },
-                        ].map(({ icon: Icon, onClick, title, color }) => (
+                        ].filter(({ title }) => isAdmin || !['Enroll in Classes', 'Edit Student', 'Delete Student'].includes(title)).map(({ icon: Icon, onClick, title, color }) => (
                           <button
                             key={title}
                             onClick={onClick}
@@ -1030,7 +1013,7 @@ const ViewStudentModal = ({
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Student Details - ${student.name}</title>
+      <title>Student Details - ${escapeHtml(student.name)}</title>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <style>
         @page {
@@ -1038,7 +1021,7 @@ const ViewStudentModal = ({
           margin: 15mm;
         }
         @media print {
-          body { 
+          body {
             margin: 0;
             padding: 0;
             -webkit-print-color-adjust: exact;
@@ -1051,8 +1034,8 @@ const ViewStudentModal = ({
             padding: 15mm;
             box-sizing: border-box;
           }
-          .no-print { 
-            display: none !important; 
+          .no-print {
+            display: none !important;
           }
           * {
             -webkit-print-color-adjust: exact;
@@ -1312,7 +1295,7 @@ const ViewStudentModal = ({
         <!-- Header -->
         <div class="header">
           <h1>Student Details</h1>
-          <p>Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}</p>
+          <p>Generated on ${escapeHtml(new Date().toLocaleDateString())} at ${escapeHtml(new Date().toLocaleTimeString())}</p>
         </div>
 
         <!-- Main Content -->
@@ -1321,23 +1304,23 @@ const ViewStudentModal = ({
           <div class="profile-section">
             ${
               student.profilePicture
-                ? `<img src="${student.profilePicture}" alt="${student.name}" class="profile-img" />`
+                ? `<img src="${escapeHtml(student.profilePicture)}" alt="${escapeHtml(student.name)}" class="profile-img" />`
                 : `<div class="profile-placeholder">
                 <span style="font-size: 24px;">👤</span>
               </div>`
             }
-            <div class="student-name">${student.name}</div>
-            <div class="student-id">ID: ${student.studentId}</div>
+            <div class="student-name">${escapeHtml(student.name)}</div>
+            <div class="student-id">ID: ${escapeHtml(student.studentId)}</div>
             <div class="status-badge" style="${
-              student.status === "active"
+              escapeHtml(student.status === "active"
                 ? "background: #d1fae5; color: #065f46;"
                 : student.status === "inactive"
                 ? "background: #f3f4f6; color: #374151;"
-                : "background: #fee2e2; color: #991b1b;"
+                : "background: #fee2e2; color: #991b1b;")
             }">
               ${
-                student.status?.charAt(0).toUpperCase() +
-                student.status?.slice(1)
+                escapeHtml(student.status?.charAt(0).toUpperCase() +
+                student.status?.slice(1))
               }
             </div>
           </div>
@@ -1350,11 +1333,11 @@ const ViewStudentModal = ({
               <div class="contact-info">
                 <div class="contact-item">
                   <span class="contact-label">Email:</span><br>
-                  ${student.email || "N/A"}
+                  ${escapeHtml(student.email || "N/A")}
                 </div>
                 <div class="contact-item">
                   <span class="contact-label">Phone:</span><br>
-                  ${student.phone || "N/A"}
+                  ${escapeHtml(student.phone || "N/A")}
                 </div>
               </div>
             </div>
@@ -1365,15 +1348,15 @@ const ViewStudentModal = ({
               <div class="contact-info">
                 <div class="contact-item">
                   <span class="contact-label">Name:</span><br>
-                  ${student.parentName || "N/A"}
+                  ${escapeHtml(student.parentName || "N/A")}
                 </div>
                 <div class="contact-item">
                   <span class="contact-label">Email:</span><br>
-                  ${student.parentEmail || "N/A"}
+                  ${escapeHtml(student.parentEmail || "N/A")}
                 </div>
                 <div class="contact-item">
                   <span class="contact-label">Phone:</span><br>
-                  ${student.parentPhone || "N/A"}
+                  ${escapeHtml(student.parentPhone || "N/A")}
                 </div>
               </div>
             </div>
@@ -1385,13 +1368,13 @@ const ViewStudentModal = ({
             <div class="academic-grid">
               <div class="academic-item">
                 <div class="academic-label">School</div>
-                <div>${student.school || "N/A"}</div>
+                <div>${escapeHtml(student.school || "N/A")}</div>
               </div>
               <div class="academic-item">
                 <div class="academic-label">Enrollment Date</div>
-                <div>${new Date(
+                <div>${escapeHtml(new Date(
                   student.enrollmentDate
-                ).toLocaleDateString()}</div>
+                ).toLocaleDateString())}</div>
               </div>
             </div>
           </div>
@@ -1401,17 +1384,17 @@ const ViewStudentModal = ({
             student.enrolledClasses?.length > 0
               ? `
             <div class="classes-section">
-              <h3>Enrolled Classes (${student.enrolledClasses.length})</h3>
+              <h3>Enrolled Classes (${escapeHtml(student.enrolledClasses.length)})</h3>
               <div class="classes-grid">
                 ${student.enrolledClasses
                   .map(
-                    (classItem, index) => `
+                    (classItem) => `
                   <div class="class-item">
                     <div class="class-name">${
-                      classItem.name || "Class Name"
+                      escapeHtml(classItem.name || "Class Name")
                     }</div>
                     <div class="class-details">${
-                      classItem.subject || "N/A"
+                      escapeHtml(classItem.subject || "N/A")
                     }</div>
                   </div>
                 `
@@ -1429,7 +1412,7 @@ const ViewStudentModal = ({
               ? `
             <div class="notes-section">
               <h3>Notes</h3>
-              <div class="notes-content">${student.notes}</div>
+              <div class="notes-content">${escapeHtml(student.notes)}</div>
             </div>
           `
               : ""
@@ -1438,7 +1421,7 @@ const ViewStudentModal = ({
 
         <!-- Footer -->
         <div class="footer">
-          <p>&copy; ${new Date().getFullYear()} Oasis Management System • Confidential Student Document</p>
+          <p>&copy; ${escapeHtml(new Date().getFullYear())} Oasis Management System • Confidential Student Document</p>
         </div>
       </div>
 

@@ -23,7 +23,9 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^[A-Z_]'  }],
     },
   },
+  // useAuth is the existing context helper; keep component HMR checks elsewhere.
+  { files: ['src/context/AuthContext.jsx'], rules: { 'react-refresh/only-export-components': ['error', { allowExportNames: ['useAuth'] }] } },
 ])

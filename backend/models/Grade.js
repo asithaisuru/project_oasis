@@ -1,3 +1,4 @@
+import { allocateHumanId } from '../utils/humanId.js';
 import mongoose from 'mongoose';
 
 const gradeSchema = new mongoose.Schema({
@@ -54,25 +55,16 @@ const gradeSchema = new mongoose.Schema({
   isPublished: {
     type: Boolean,
     default: false
-  }
+  },
+  notificationPending: { type: Boolean, default: false },
+  publishedAt: Date
 }, {
   timestamps: true
 });
 
 // Generate grade ID before saving
-gradeSchema.pre('save', async function(next) {
-  if (!this.gradeId) {
-    try {
-      const GradeModel = mongoose.model('Grade');
-      const count = await GradeModel.countDocuments();
-      this.gradeId = `GRD${String(count + 1).padStart(4, '0')}`;
-      next();
-    } catch (error) {
-      next(error);
-    }
-  } else {
-    next();
-  }
+gradeSchema.pre('validate', async function () {
+  if (this.isNew) this.gradeId = await allocateHumanId(this.constructor, 'gradeId', 'GRD', this.gradeId);
 });
 
 // Indexes for better query performance

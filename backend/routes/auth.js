@@ -4,7 +4,7 @@ import {
   registerUser,
   loginUser,
   getUserProfile,
-  updateUserProfile
+  updateUserProfile, logoutUser, linkTeacherProfile
 } from '../controllers/authController.js';
 import { admin, protect } from '../middleware/auth.js';
 import { handleValidationErrors } from '../middleware/validation.js';
@@ -45,7 +45,9 @@ router.route('/profile')
       body('password').optional().isLength({ min: 6 })
     ],
     handleValidationErrors,
-    updateUserProfile
+    updateUserProfile, logoutUser, linkTeacherProfile
   );
 
+router.post('/logout', protect, logoutUser);
+router.put('/users/:id/teacher-profile', protect, admin, linkTeacherProfile);
 export default router;

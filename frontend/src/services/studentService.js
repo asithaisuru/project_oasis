@@ -8,12 +8,6 @@ export const studentService = {
     return response.data;
   },
 
-  // Get student by ID
-  getStudentById: async (id) => {
-    const response = await api.get(`/students/${id}`);
-    return response.data;
-  },
-
   // Create student
   createStudent: async (studentData) => {
     const response = await api.post("/students", studentData);
